@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Briefcase, Mail, Phone, MapPin } from "lucide-react"
+import { Mail, Phone, MapPin } from "lucide-react"
 
 const footerLinks = {
   forCandidates: [
@@ -37,10 +37,8 @@ export function Footer() {
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                <Briefcase className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">TalentBid</span>
+              <img src="/main-logo.png" alt="TalentBid" className="h-9 w-auto" />
+              {/* <span className="text-xl font-bold text-foreground">TalentBid</span> */}
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
               Revolutionary recruitment platform connecting talent with opportunities through smart bidding.

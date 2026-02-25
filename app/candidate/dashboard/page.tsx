@@ -2,20 +2,20 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { MessageBanner } from "@/components/ui/message-banner"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  Bell,
-  Briefcase,
   Eye,
   TrendingUp,
   DollarSign,
@@ -23,7 +23,6 @@ import {
   MapPin,
   Clock,
   CheckCircle,
-  XCircle,
   ChevronDown,
   Settings,
   LogOut,
@@ -76,25 +75,30 @@ const activeBids = [
   },
 ]
 
-const notifications = [
-  { id: 1, message: "New bid received from Gulf Construction LLC", time: "2 hours ago", unread: true },
-  { id: 2, message: "Your profile was viewed 50 times today", time: "5 hours ago", unread: true },
-  { id: 3, message: "Bid accepted by Al Futtaim Group", time: "1 day ago", unread: false },
-]
-
 export default function CandidateDashboard() {
   const { theme, setTheme } = useTheme()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+
+  const handleLogout = () => {
+    localStorage.removeItem("user")
+    localStorage.removeItem("token")
+    setLogoutConfirmOpen(false)
+    import("next-auth/react").then(({ signOut }) => signOut({ callbackUrl: "/" }))
+    router.push("/")
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-border bg-card transition-transform lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Briefcase className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold text-foreground">TalentBid</span>
+          <Link href="/" className="flex items-center gap-2">
+            <img src="/main-logo.png" alt="TalentBid" className="h-9 w-auto" />
+            <span className="text-xl font-bold text-foreground">TalentBid</span>
+          </Link>
         </div>
 
         <nav className="flex flex-col gap-1 p-4">
@@ -109,7 +113,9 @@ export default function CandidateDashboard() {
           <Link href="/candidate/bids" className="flex items-center gap-3 rounded-lg px-4 py-3 text-muted-foreground hover:bg-muted hover:text-foreground">
             <TrendingUp className="h-5 w-5" />
             Bids Received
-            <Badge className="ml-auto">8</Badge>
+            {activeBids.length > 0 && (
+              <Badge className="ml-auto">{activeBids.length}</Badge>
+            )}
           </Link>
           <Link href="/candidate/applications" className="flex items-center gap-3 rounded-lg px-4 py-3 text-muted-foreground hover:bg-muted hover:text-foreground">
             <FileText className="h-5 w-5" />
@@ -142,7 +148,7 @@ export default function CandidateDashboard() {
           </Button>
 
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-foreground">Welcome back, Mohammed</h1>
+            <h1 className="text-lg font-semibold text-foreground">Welcome back, {displayName}</h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -153,44 +159,30 @@ export default function CandidateDashboard() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-                    2
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                {notifications.map((notif) => (
-                  <DropdownMenuItem key={notif.id} className="flex flex-col items-start gap-1 p-3">
-                    <span className={notif.unread ? "font-medium text-foreground" : "text-muted-foreground"}>
-                      {notif.message}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{notif.time}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                    MA
+                    {initials}
                   </div>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
+                <DropdownMenuItem asChild>
+                  <Link href="/candidate/profile">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                <DropdownMenuItem asChild>
+                  <Link href="/candidate/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => setLogoutConfirmOpen(true)}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
@@ -201,6 +193,7 @@ export default function CandidateDashboard() {
 
         {/* Dashboard Content */}
         <main className="p-4 lg:p-8">
+          <MessageBanner message={message} onDismiss={() => setMessage(null)} className="mb-4" />
           {/* Profile Completion */}
           <Card className="mb-6 border-primary/50 bg-primary/5">
             <CardContent className="flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center">
@@ -219,68 +212,84 @@ export default function CandidateDashboard() {
             </CardContent>
           </Card>
 
-          {/* Stats Grid */}
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat) => (
-              <Card key={stat.label}>
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <stat.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  </div>
-                  <Badge variant="secondary" className="ml-auto">
-                    {stat.change}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))}
+            {stats.map((stat) => {
+              const Icon = stat.icon
+              return (
+                <Card key={stat.label}>
+                  <CardContent className="flex items-center gap-4 p-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                      <Icon className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                      <p className="text-sm text-muted-foreground">{stat.label}</p>
+                    </div>
+                    <Badge variant="secondary" className="ml-auto">
+                      {stat.change}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
 
           {/* Active Bids */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Active Bids</CardTitle>
-              <Button variant="outline" size="sm">View All</Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/candidate/bids">View All</Link>
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {activeBids.map((bid) => (
-                  <div key={bid.id} className="flex flex-col gap-4 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                        <Building2 className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{bid.position}</h3>
-                        <p className="text-sm text-muted-foreground">{bid.company}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {bid.location}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {bid.date}
-                          </span>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : activeBids.length === 0 ? (
+                <p className="py-8 text-center text-muted-foreground">No bids yet. When companies bid on your profile, they will appear here.</p>
+              ) : (
+                <div className="space-y-4">
+                  {activeBids.map((bid) => (
+                    <div key={bid.id} className="flex flex-col gap-4 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
+                          <Building2 className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{bid.position}</h3>
+                          <p className="text-sm text-muted-foreground">{bid.companyName}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            {bid.location && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {bid.location}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatBidDate(bid.createdAt)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-foreground">{bid.bidAmount}</p>
-                        <p className="text-xs text-muted-foreground">Monthly Salary</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-foreground">
+                            ${bid.bidAmount.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Monthly Salary</p>
+                        </div>
+                        <Badge variant={bid.status === "accepted" ? "default" : "secondary"} className="capitalize">
+                          {bid.status === "accepted" && <CheckCircle className="mr-1 h-3 w-3" />}
+                          {bid.status}
+                        </Badge>
                       </div>
-                      <Badge variant={bid.status === "accepted" ? "default" : "secondary"} className="capitalize">
-                        {bid.status === "accepted" && <CheckCircle className="mr-1 h-3 w-3" />}
-                        {bid.status}
-                      </Badge>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </main>
@@ -290,6 +299,16 @@ export default function CandidateDashboard() {
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
+
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        title="Log out?"
+        description="Are you sure you want to log out? You will need to sign in again to access your dashboard."
+        confirmLabel="Log out"
+        variant="destructive"
+        onConfirm={handleLogout}
+      />
     </div>
   )
 }

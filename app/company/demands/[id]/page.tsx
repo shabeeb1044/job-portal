@@ -24,6 +24,7 @@ import {
 import {
   ArrowLeft,
   Download,
+  Play,
   Loader2,
   Briefcase,
   User,
@@ -51,6 +52,7 @@ interface Submission {
     phone: string
     skills: string[]
     cvUrl?: string
+    videoUrl?: string
   } | null
 }
 
@@ -63,6 +65,15 @@ export default function CompanyDemandSubmissionsPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [planInfo, setPlanInfo] = useState<{
+    isFree: boolean
+    isCorporate: boolean
+    cvDownloadLimit: number | null
+    totalCVDownloads: number
+    freeCandidateLimit: number
+    level: string | null
+    status: string | null
+  } | null>(null)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -80,13 +91,26 @@ export default function CompanyDemandSubmissionsPage() {
     Promise.all([
       fetch(`/api/company/demands?companyId=${cid}`).then((r) => r.json()),
       fetch(`/api/company/submissions?companyId=${cid}&demandId=${demandId}`).then((r) => r.json()),
+      fetch(`/api/company/stats?companyId=${cid}`).then((r) => r.json()),
     ])
-      .then(([demandsRes, subRes]) => {
+      .then(([demandsRes, subRes, statsRes]) => {
         if (demandsRes.success && demandsRes.demands) {
           const d = demandsRes.demands.find((x: { id: string }) => x.id === demandId)
           if (d) setDemand({ jobTitle: d.jobTitle, companyName: d.companyName })
         }
         if (subRes.success && subRes.submissions) setSubmissions(subRes.submissions)
+        if (statsRes?.plan) {
+          setPlanInfo({
+            isFree: !!statsRes.plan.isFree,
+            isCorporate: !!statsRes.plan.isCorporate,
+            cvDownloadLimit:
+              typeof statsRes.plan.cvDownloadLimit === "number" ? statsRes.plan.cvDownloadLimit : null,
+            totalCVDownloads: statsRes.plan.totalCVDownloads ?? 0,
+            freeCandidateLimit: statsRes.plan.freeCandidateLimit ?? 4,
+            level: statsRes.plan.level ?? null,
+            status: statsRes.plan.status ?? null,
+          })
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -117,7 +141,47 @@ export default function CompanyDemandSubmissionsPage() {
     }
   }
 
+  const handleCvDownload = (candidateId: string | undefined, candidateName: string) => {
+    if (!companyId || !candidateId) return
+    const info = planInfo
+
+    if (info?.isFree && !info.isCorporate) {
+      toast.error("CV download is available on paid company plans. Please upgrade your plan.")
+      return
+    }
+
+    if (info && typeof info.cvDownloadLimit === "number" && info.cvDownloadLimit >= 0) {
+      if (info.totalCVDownloads >= info.cvDownloadLimit) {
+        toast.error("You have reached your CV download limit for the current plan.")
+        return
+      }
+    }
+
+    const url = `/api/company/download-cv?companyId=${encodeURIComponent(
+      companyId
+    )}&candidateId=${encodeURIComponent(candidateId)}`
+
+    // Trigger browser download via redirect
+    window.open(url, "_blank")
+
+    // Optimistically update local counter so admin stats stay in sync without reload
+    setPlanInfo((prev) =>
+      prev
+        ? {
+            ...prev,
+            totalCVDownloads: prev.totalCVDownloads + 1,
+          }
+        : prev
+    )
+
+    toast.success(`Starting CV download for ${candidateName}`)
+  }
+
   if (loading) return <PageLoader />
+
+  const isFreePlan = planInfo?.isFree && !planInfo.isCorporate
+  const freeLimit = planInfo?.freeCandidateLimit ?? 4
+  const visibleSubmissions = isFreePlan ? submissions.slice(0, freeLimit) : submissions
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
@@ -136,6 +200,40 @@ export default function CompanyDemandSubmissionsPage() {
         </div>
       </div>
 
+      {planInfo && (
+        <Card>
+          <CardContent className="flex flex-col gap-2 py-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">
+                Plan: {planInfo.isCorporate ? "Corporate (unlimited access)" : planInfo.level || "Free"}
+              </span>
+              {planInfo.status && !planInfo.isCorporate && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+                  {planInfo.status}
+                </span>
+              )}
+            </div>
+            {!planInfo.isCorporate && (
+              <div className="text-muted-foreground">
+                {isFreePlan ? (
+                  <>
+                    Free companies can see up to {freeLimit} candidate names and play their videos.
+                    Upgrade to a paid plan to unlock full profiles and CV downloads.
+                  </>
+                ) : typeof planInfo.cvDownloadLimit === "number" && planInfo.cvDownloadLimit >= 0 ? (
+                  <>
+                    CV downloads used: <span className="font-medium">{planInfo.totalCVDownloads}</span> /{" "}
+                    <span className="font-medium">{planInfo.cvDownloadLimit}</span>
+                  </>
+                ) : (
+                  <>CV downloads: Unlimited</>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {submissions.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -147,8 +245,11 @@ export default function CompanyDemandSubmissionsPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Name, Email, Phone, Agent, Agency, Status, CV</CardTitle>
-            <p className="text-sm text-muted-foreground">Shortlist, Interview, Hire, or Reject candidates.</p>
+            <CardTitle>Name, Contact, Video, Agent, Agency, Status, CV</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Shortlist, Interview, Hire, or Reject candidates. Access to contact details and CV depends on your
+              subscription plan.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -158,6 +259,7 @@ export default function CompanyDemandSubmissionsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
+                    <TableHead>Video</TableHead>
                     <TableHead>Agent</TableHead>
                     <TableHead>Agency</TableHead>
                     <TableHead>Status</TableHead>
@@ -165,13 +267,15 @@ export default function CompanyDemandSubmissionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {submissions.map((s) => (
+                  {visibleSubmissions.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell className="font-medium">
                         {s.candidate?.name ?? s.candidateName}
                       </TableCell>
                       <TableCell className="flex items-center gap-1">
-                        {s.candidate?.email && (
+                        {isFreePlan ? (
+                          <span className="text-xs text-muted-foreground">Upgrade plan to view email</span>
+                        ) : s.candidate?.email ? (
                           <a
                             href={`mailto:${s.candidate.email}`}
                             className="text-primary hover:underline flex items-center gap-1"
@@ -179,20 +283,41 @@ export default function CompanyDemandSubmissionsPage() {
                             <Mail className="h-3 w-3" />
                             {s.candidate.email}
                           </a>
+                        ) : (
+                          "—"
                         )}
-                        {!s.candidate?.email && "—"}
                       </TableCell>
                       <TableCell className="flex items-center gap-1">
-                        {s.candidate?.phone ? (
-                          <a
-                            href={`tel:${s.candidate.phone}`}
-                            className="flex items-center gap-1"
-                          >
+                        {isFreePlan ? (
+                          <span className="text-xs text-muted-foreground">Upgrade plan to view phone</span>
+                        ) : s.candidate?.phone ? (
+                          <a href={`tel:${s.candidate.phone}`} className="flex items-center gap-1">
                             <Phone className="h-3 w-3" />
                             {s.candidate.phone}
                           </a>
                         ) : (
                           "—"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {s.candidate?.videoUrl ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            asChild
+                          >
+                            <a
+                              href={s.candidate.videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Play className="h-3 w-3" />
+                              Play
+                            </a>
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No video</span>
                         )}
                       </TableCell>
                       <TableCell>{s.agentName ?? "—"}</TableCell>
@@ -233,23 +358,21 @@ export default function CompanyDemandSubmissionsPage() {
                               <SelectItem value="rejected">Reject</SelectItem>
                             </SelectContent>
                           </Select>
-                          {s.candidate?.cvUrl && (
+                          {s.candidate?.cvUrl && !isFreePlan && (
                             <Button
                               variant="outline"
                               size="sm"
-                              asChild
                               className="gap-1"
+                              onClick={() => handleCvDownload(s.candidate?.id, s.candidate?.name ?? s.candidateName)}
                             >
-                              <a
-                                href={s.candidate.cvUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download
-                              >
-                                <Download className="h-3 w-3" />
-                                CV
-                              </a>
+                              <Download className="h-3 w-3" />
+                              CV
                             </Button>
+                          )}
+                          {isFreePlan && (
+                            <span className="text-xs text-muted-foreground">
+                              CV download available on paid plans
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -258,6 +381,12 @@ export default function CompanyDemandSubmissionsPage() {
                 </TableBody>
               </Table>
             </div>
+            {isFreePlan && submissions.length > visibleSubmissions.length && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Showing the first {freeLimit} candidates on the free plan. Upgrade to see all submissions and unlock
+                full profiles.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

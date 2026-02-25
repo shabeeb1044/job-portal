@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
                 phone: candidate.phone,
                 skills: candidate.skills,
                 cvUrl: candidate.cvUrl,
+                videoUrl: candidate.videoUrl,
               }
             : null,
           agentName: agent?.name ?? null,
@@ -48,3 +49,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch submissions' }, { status: 500 })
   }
 }
+

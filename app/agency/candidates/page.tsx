@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { MessageBanner } from "@/components/ui/message-banner"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Search,
   Edit,
@@ -19,7 +21,6 @@ import {
   Users,
   Tag,
 } from "lucide-react"
-import { toast } from "sonner"
 import Link from "next/link"
 import { PageLoader } from "@/components/page-loader"
 
@@ -48,6 +49,8 @@ export default function CandidatesPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [agencyId, setAgencyId] = useState("")
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: "" })
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -63,7 +66,7 @@ export default function CandidatesPage() {
       const data = await res.json()
       if (data.success) setCandidates(data.candidates)
     } catch {
-      toast.error("Failed to load candidates")
+      setMessage({ type: "error", text: "Failed to load candidates" })
     } finally {
       setLoading(false)
     }
@@ -81,6 +84,7 @@ export default function CandidatesPage() {
 
   const handleSaveEdit = async () => {
     if (!editCandidate) return
+    setMessage(null)
     setSaving(true)
     try {
       const res = await fetch(`/api/agency/candidate/${editCandidate.id}`, {
@@ -96,32 +100,36 @@ export default function CandidatesPage() {
       })
       const data = await res.json()
       if (data.success) {
-        toast.success("Candidate updated")
+        setMessage({ type: "success", text: "Candidate updated" })
         setEditOpen(false)
         loadCandidates(agencyId)
       } else {
-        toast.error(data.error || "Update failed")
+        setMessage({ type: "error", text: data.error || "Update failed" })
       }
     } catch {
-      toast.error("Update failed")
+      setMessage({ type: "error", text: "Update failed" })
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this candidate?")) return
+  const handleDelete = (id: string) => {
+    setDeleteConfirm({ open: true, id })
+  }
+
+  const confirmDelete = async () => {
+    const id = deleteConfirm.id
     try {
       const res = await fetch(`/api/agency/candidate/${id}`, { method: "DELETE" })
       const data = await res.json()
       if (data.success) {
-        toast.success("Candidate deleted")
+        setMessage({ type: "success", text: "Candidate deleted" })
         setCandidates(prev => prev.filter(c => c.id !== id))
       } else {
-        toast.error(data.error || "Delete failed")
+        setMessage({ type: "error", text: data.error || "Delete failed" })
       }
     } catch {
-      toast.error("Delete failed")
+      setMessage({ type: "error", text: "Delete failed" })
     }
   }
 
@@ -139,6 +147,7 @@ export default function CandidatesPage() {
 
   return (
     <div className="space-y-6">
+      <MessageBanner message={message} onDismiss={() => setMessage(null)} className="mb-2" />
       {/* Header with actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -283,6 +292,16 @@ export default function CandidatesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm(prev => ({ ...prev, open }))}
+        title="Delete candidate?"
+        description="This will permanently remove this candidate from your database. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

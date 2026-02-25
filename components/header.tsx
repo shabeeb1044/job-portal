@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
+import { signOut as nextAuthSignOut } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +13,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Sheet,
   SheetContent,
@@ -91,6 +93,7 @@ export function Header() {
   const [isOpen, setIsOpen] = useState(false)
   const [language, setLanguage] = useState("en")
   const [user, setUser] = useState<{ name?: string; email?: string; role?: string } | null>(null)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
 
   // Hydrate user from localStorage after mount so server and client first paint match (avoids hydration error)
   useEffect(() => {
@@ -102,6 +105,8 @@ export function Header() {
     localStorage.removeItem("token")
     setUser(null)
     setIsOpen(false)
+    setLogoutConfirmOpen(false)
+    nextAuthSignOut({ callbackUrl: "/" })
     router.push("/")
   }
 
@@ -110,10 +115,8 @@ export function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Briefcase className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold text-foreground">TalentBid</span>
+          <img src="/main-logo.png" alt="TalentBid" className="h-9 w-auto" />
+          {/* <span className="text-xl font-bold text-foreground">TalentBid</span> */}
         </Link>
 
         {/* Desktop Navigation */}
@@ -182,11 +185,11 @@ export function Header() {
                 <DropdownMenuItem asChild>
                   <Link href={getDashboardHref(user.role || "")} className="flex items-center gap-2">
                     <LayoutDashboard className="h-4 w-4" />
-                    {getRoleLabel(user.role || "")} Dashboard
+                    {user.role === "candidate" ? "My Profile" : `${getRoleLabel(user.role || "")} Dashboard`}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                <DropdownMenuItem onClick={() => setLogoutConfirmOpen(true)} className="text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
@@ -332,10 +335,10 @@ export function Header() {
                       className="flex items-center gap-3 rounded-lg px-4 py-3 text-foreground hover:bg-accent"
                     >
                       <LayoutDashboard className="h-5 w-5" />
-                      Dashboard
+                      {user.role === "candidate" ? "Profile" : "Dashboard"}
                     </Link>
                     <button
-                      onClick={handleLogout}
+                      onClick={() => setLogoutConfirmOpen(true)}
                       className="flex items-center gap-3 rounded-lg px-4 py-3 text-left text-destructive hover:bg-destructive/10"
                     >
                       <LogOut className="h-5 w-5" />
@@ -393,6 +396,16 @@ export function Header() {
           </Sheet>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        title="Log out?"
+        description="Are you sure you want to log out? You will need to sign in again to access your account."
+        confirmLabel="Log out"
+        variant="destructive"
+        onConfirm={handleLogout}
+      />
     </header>
   )
 }

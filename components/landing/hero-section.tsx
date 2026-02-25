@@ -70,9 +70,9 @@ export function HeroSection() {
           </p>
 
           {/* Search Box */}
-          <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-border bg-card p-3 shadow-lg md:p-4">
+          <div className="mx-auto mb-8 max-w-3xl rounded-2xl border hidden  border-border bg-card p-3 shadow-lg md:p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              {/* Search Input */}
+             
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                 <Input

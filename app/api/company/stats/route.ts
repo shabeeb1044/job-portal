@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 
+const FREE_CANDIDATE_LIMIT = 4
+
 export async function GET(request: NextRequest) {
   try {
     const companyId = request.nextUrl.searchParams.get('companyId')
@@ -54,6 +56,36 @@ export async function GET(request: NextRequest) {
       })
     )
 
+    // Plan / access info for company
+    const isCorporate = company.isCorporate
+    const subscriptionPlan = company.subscriptionPlan ?? null
+    const subscriptionStatus = company.subscriptionStatus ?? null
+    const totalCVDownloads = company.totalCVDownloads ?? 0
+
+    let cvDownloadLimit: number | null = null
+    let isFree = false
+
+    if (isCorporate) {
+      cvDownloadLimit = -1
+      isFree = false
+    } else if (subscriptionPlan && subscriptionStatus === 'active') {
+      const plans = await db.plans.getAll()
+      const matchingPlan = plans.find(
+        (p) => p.type === 'company' && p.level === subscriptionPlan && p.isActive
+      )
+      if (matchingPlan) {
+        cvDownloadLimit =
+          typeof matchingPlan.features?.cvDownloads === 'number'
+            ? matchingPlan.features.cvDownloads
+            : null
+      }
+      isFree = false
+    } else {
+      // No active paid subscription -> free tier
+      isFree = true
+      cvDownloadLimit = 0
+    }
+
     return NextResponse.json({
       success: true,
       stats: {
@@ -78,6 +110,15 @@ export async function GET(request: NextRequest) {
         submissionCount: applications.filter((a) => a.demandId === d.id).length,
       })),
       recentSubmissions: submissionsWithCandidate,
+      plan: {
+        level: subscriptionPlan,
+        status: subscriptionStatus,
+        isCorporate,
+        isFree,
+        cvDownloadLimit,
+        totalCVDownloads,
+        freeCandidateLimit: FREE_CANDIDATE_LIMIT,
+      },
     })
   } catch (error) {
     return apiError(error, 500)

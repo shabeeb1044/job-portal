@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/header"
+import { AdminNav } from "@/components/admin-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +28,7 @@ import {
   Loader2,
   Inbox,
 } from "lucide-react"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type PendingItem = {
   type: "agency" | "company"
@@ -47,6 +49,16 @@ export default function AdminApprovalsPage() {
   const [loading, setLoading] = useState(true)
   const [actingId, setActingId] = useState<string | null>(null)
   const [counts, setCounts] = useState({ agencies: 0, companies: 0 })
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{
+    open: boolean
+    title: string
+    description: string
+    variant?: "default" | "destructive"
+    action: "approve" | "reject"
+    type: "agency" | "company"
+    id: string
+  } | null>(null)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -59,6 +71,7 @@ export default function AdminApprovalsPage() {
       router.push("/")
       return
     }
+    setUserRole(userData.role)
     loadPending()
   }, [router])
 
@@ -98,6 +111,12 @@ export default function AdminApprovalsPage() {
     }
   }
 
+  const runConfirmedAction = async () => {
+    if (!confirmAction) return
+    await handleAction(confirmAction.action, confirmAction.type, confirmAction.id)
+    setConfirmAction(null)
+  }
+
   const pendingAgencies = pending.filter((p) => p.type === "agency")
   const pendingCompanies = pending.filter((p) => p.type === "company")
 
@@ -106,6 +125,7 @@ export default function AdminApprovalsPage() {
       <Header />
       <main className="flex-1 bg-background p-4 md:p-8">
         <div className="container mx-auto max-w-6xl">
+          <AdminNav role={userRole ?? undefined} />
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Link
@@ -207,7 +227,14 @@ export default function AdminApprovalsPage() {
                                   size="sm"
                                   variant="default"
                                   disabled={actingId === item.id}
-                                  onClick={() => handleAction("approve", item.type, item.id)}
+                                  onClick={() => setConfirmAction({
+                                    open: true,
+                                    title: "Approve this " + item.type + "?",
+                                    description: item.type === "agency" ? "This agency will be approved and can access the platform." : "This company will be approved and can access the platform.",
+                                    action: "approve",
+                                    type: item.type,
+                                    id: item.id,
+                                  })}
                                 >
                                   {actingId === item.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -222,7 +249,15 @@ export default function AdminApprovalsPage() {
                                   size="sm"
                                   variant="outline"
                                   disabled={actingId === item.id}
-                                  onClick={() => handleAction("reject", item.type, item.id)}
+                                  onClick={() => setConfirmAction({
+                                    open: true,
+                                    title: "Reject this " + item.type + "?",
+                                    description: item.type === "agency" ? "This agency will be rejected and will not be able to access the platform." : "This company will be rejected.",
+                                    variant: "destructive",
+                                    action: "reject",
+                                    type: item.type,
+                                    id: item.id,
+                                  })}
                                 >
                                   <X className="h-4 w-4 mr-1" />
                                   Reject
@@ -279,7 +314,14 @@ export default function AdminApprovalsPage() {
                                     size="sm"
                                     variant="default"
                                     disabled={actingId === item.id}
-                                    onClick={() => handleAction("approve", "agency", item.id)}
+                                    onClick={() => setConfirmAction({
+                                      open: true,
+                                      title: "Approve agency?",
+                                      description: "This agency will be approved and can access the platform.",
+                                      action: "approve",
+                                      type: "agency",
+                                      id: item.id,
+                                    })}
                                   >
                                     {actingId === item.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -294,7 +336,15 @@ export default function AdminApprovalsPage() {
                                     size="sm"
                                     variant="outline"
                                     disabled={actingId === item.id}
-                                    onClick={() => handleAction("reject", "agency", item.id)}
+                                    onClick={() => setConfirmAction({
+                                      open: true,
+                                      title: "Reject agency?",
+                                      description: "This agency will be rejected and will not be able to access the platform.",
+                                      variant: "destructive",
+                                      action: "reject",
+                                      type: "agency",
+                                      id: item.id,
+                                    })}
                                   >
                                     <X className="h-4 w-4 mr-1" />
                                     Reject
@@ -354,7 +404,14 @@ export default function AdminApprovalsPage() {
                                     size="sm"
                                     variant="default"
                                     disabled={actingId === item.id}
-                                    onClick={() => handleAction("approve", "company", item.id)}
+                                    onClick={() => setConfirmAction({
+                                      open: true,
+                                      title: "Approve company?",
+                                      description: "This company will be approved and can access the platform.",
+                                      action: "approve",
+                                      type: "company",
+                                      id: item.id,
+                                    })}
                                   >
                                     {actingId === item.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -369,7 +426,15 @@ export default function AdminApprovalsPage() {
                                     size="sm"
                                     variant="outline"
                                     disabled={actingId === item.id}
-                                    onClick={() => handleAction("reject", "company", item.id)}
+                                    onClick={() => setConfirmAction({
+                                      open: true,
+                                      title: "Reject company?",
+                                      description: "This company will be rejected.",
+                                      variant: "destructive",
+                                      action: "reject",
+                                      type: "company",
+                                      id: item.id,
+                                    })}
                                   >
                                     <X className="h-4 w-4 mr-1" />
                                     Reject
@@ -388,6 +453,19 @@ export default function AdminApprovalsPage() {
           )}
         </div>
       </main>
+
+      {confirmAction && (
+        <ConfirmDialog
+          open={confirmAction.open}
+          onOpenChange={(open) => !open && setConfirmAction(null)}
+          title={confirmAction.title}
+          description={confirmAction.description}
+          variant={confirmAction.variant}
+          confirmLabel="Confirm"
+          onConfirm={runConfirmedAction}
+          loading={!!actingId}
+        />
+      )}
     </div>
   )
 }

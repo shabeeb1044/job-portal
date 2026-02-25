@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { MessageBanner } from "@/components/ui/message-banner"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Plus,
   Edit,
@@ -16,7 +18,6 @@ import {
   UserCog,
   Loader2,
 } from "lucide-react"
-import { toast } from "sonner"
 import { PageLoader } from "@/components/page-loader"
 
 interface Agent {
@@ -44,6 +45,8 @@ export default function AgentsPage() {
   const [formData, setFormData] = useState(emptyAgent)
   const [editId, setEditId] = useState("")
   const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: "" })
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -59,7 +62,7 @@ export default function AgentsPage() {
       const data = await res.json()
       if (data.success) setAgents(data.agents)
     } catch {
-      toast.error("Failed to load agents")
+      setMessage({ type: "error", text: "Failed to load agents" })
     } finally {
       setLoading(false)
     }
@@ -67,9 +70,10 @@ export default function AgentsPage() {
 
   const handleAdd = async () => {
     if (!formData.name || !formData.email || !formData.password) {
-      toast.error("Name, email, and password are required")
+      setMessage({ type: "error", text: "Name, email, and password are required" })
       return
     }
+    setMessage(null)
     setSaving(true)
     try {
       const res = await fetch("/api/agency/agent", {
@@ -79,21 +83,22 @@ export default function AgentsPage() {
       })
       const data = await res.json()
       if (data.success) {
-        toast.success("Agent added successfully")
+        setMessage({ type: "success", text: "Agent added successfully" })
         setAddOpen(false)
         setFormData(emptyAgent)
         loadAgents(agencyId)
       } else {
-        toast.error(data.error || "Failed to add agent")
+        setMessage({ type: "error", text: data.error || "Failed to add agent" })
       }
     } catch {
-      toast.error("Failed to add agent")
+      setMessage({ type: "error", text: "Failed to add agent" })
     } finally {
       setSaving(false)
     }
   }
 
   const handleEdit = async () => {
+    setMessage(null)
     setSaving(true)
     try {
       const { password, ...rest } = formData
@@ -105,32 +110,36 @@ export default function AgentsPage() {
       })
       const data = await res.json()
       if (data.success) {
-        toast.success("Agent updated")
+        setMessage({ type: "success", text: "Agent updated" })
         setEditOpen(false)
         loadAgents(agencyId)
       } else {
-        toast.error(data.error || "Update failed")
+        setMessage({ type: "error", text: data.error || "Update failed" })
       }
     } catch {
-      toast.error("Update failed")
+      setMessage({ type: "error", text: "Update failed" })
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this agent?")) return
+    setDeleteConfirm({ open: true, id })
+  }
+
+  const confirmDelete = async () => {
+    const id = deleteConfirm.id
     try {
       const res = await fetch(`/api/agency/agent/${id}`, { method: "DELETE" })
       const data = await res.json()
       if (data.success) {
-        toast.success("Agent deleted")
+        setMessage({ type: "success", text: "Agent deleted" })
         setAgents(prev => prev.filter(a => a.id !== id))
       } else {
-        toast.error(data.error || "Delete failed")
+        setMessage({ type: "error", text: data.error || "Delete failed" })
       }
     } catch {
-      toast.error("Delete failed")
+      setMessage({ type: "error", text: "Delete failed" })
     }
   }
 
@@ -146,7 +155,7 @@ export default function AgentsPage() {
         setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, isActive: !a.isActive } : a))
       }
     } catch {
-      toast.error("Failed to update status")
+      setMessage({ type: "error", text: "Failed to update status" })
     }
   }
 
@@ -156,6 +165,7 @@ export default function AgentsPage() {
 
   return (
     <div className="space-y-6">
+      <MessageBanner message={message} onDismiss={() => setMessage(null)} className="mb-2" />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Agents ({agents.length})</h1>
@@ -300,6 +310,16 @@ export default function AgentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm(prev => ({ ...prev, open }))}
+        title="Delete agent?"
+        description="This will permanently remove this agent. They will no longer be able to access the portal. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

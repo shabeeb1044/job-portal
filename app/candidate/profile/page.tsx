@@ -2,6 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +25,8 @@ import {
 } from "lucide-react"
 
 export default function CandidateProfilePage() {
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [candidateId, setCandidateId] = useState<string | null>(null)
   const [cvUrl, setCvUrl] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)

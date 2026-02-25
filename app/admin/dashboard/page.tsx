@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
+import { AdminNav } from "@/components/admin-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -48,6 +49,7 @@ export default function AdminDashboard() {
     interviewsScheduled: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
     // Check auth
@@ -62,6 +64,7 @@ export default function AdminDashboard() {
       router.push('/')
       return
     }
+    setUserRole(userData.role)
 
     // Load stats
     loadStats()
@@ -154,31 +157,12 @@ export default function AdminDashboard() {
       <main className="flex-1 bg-background p-4 md:p-8">
         <div className="container mx-auto max-w-7xl">
           {/* Admin nav */}
-          <nav className="mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-4">
-            <Link
-              href="/admin/dashboard"
-              className="flex items-center gap-2 text-sm font-medium text-primary"
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
-            </Link>
-            <span className="text-muted-foreground">/</span>
-            <Link href="/admin/approvals" className="text-sm text-muted-foreground hover:text-foreground">
-              Approvals
-            </Link>
-            <Link href="/admin/candidates" className="text-sm text-muted-foreground hover:text-foreground">
-              Candidates
-            </Link>
-            <Link href="/admin/agencies" className="text-sm text-muted-foreground hover:text-foreground">
-              Agencies
-            </Link>
-            <Link href="/admin/companies" className="text-sm text-muted-foreground hover:text-foreground">
-              Companies
-            </Link>
-          </nav>
+          <AdminNav role={userRole ?? undefined} />
 
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Admin Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {userRole === "super_admin" ? "Super Admin Dashboard" : "Admin Dashboard"}
+            </h1>
             <p className="mt-2 text-muted-foreground">
               Overview and management for your recruitment platform
             </p>

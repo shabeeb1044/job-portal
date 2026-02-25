@@ -1,15 +1,17 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/header"
+import { AdminNav } from "@/components/admin-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Video, ArrowLeft } from "lucide-react"
 
 export default function AdminInterviewsPage() {
   const router = useRouter()
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -22,6 +24,7 @@ export default function AdminInterviewsPage() {
       router.push("/")
       return
     }
+    setUserRole(userData.role)
   }, [router])
 
   return (
@@ -29,6 +32,7 @@ export default function AdminInterviewsPage() {
       <Header />
       <main className="flex-1 bg-background p-4 md:p-8">
         <div className="container mx-auto max-w-7xl">
+          <AdminNav role={userRole ?? undefined} />
           <div className="mb-8">
             <Link href="/admin/dashboard" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" />

@@ -23,8 +23,9 @@ export default function RootLoading() {
           </div>
         </div>
         <div className="text-center loading-fade-up">
-          <p className="text-base font-semibold text-foreground">TalentBid</p>
-          <p className="text-xs text-muted-foreground mt-1">Loading platform...</p>
+          <img src="/main-logo.png" alt="TalentBid" className="mx-auto h-10 w-auto" />
+          {/* <p className="mt-2 text-base font-semibold text-foreground">TalentBid</p> */}
+          {/* <p className="text-xs text-muted-foreground mt-1">Loading...</p> */}
         </div>
 
         {/* Progress bar */}

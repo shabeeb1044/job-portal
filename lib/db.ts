@@ -120,6 +120,7 @@ export interface Company {
   address?: string
   description?: string
   logoUrl?: string
+  proofDocumentUrl?: string
 
   // Primary contact (also duplicated to email/phone for convenience in UI/admin tables)
   contactName: string
@@ -623,13 +624,13 @@ export const db = {
     },
     update: async (id: string, updates: Partial<Plan>): Promise<Plan | null> => {
       const db = await getDatabase()
-      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const query = ObjectId.isValid(String(id)) ? { _id: new ObjectId(id) } : { id: String(id) }
       const result = await db.collection('plans').findOneAndUpdate(
         query,
         { $set: updates },
         { returnDocument: 'after' }
       )
-      return result?.value ? toInterface<Plan>(result.value) : null
+      return result ? toInterface<Plan>(result) : null
     },
   },
   interviews: {

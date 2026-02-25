@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
+import { AdminNav } from "@/components/admin-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -46,6 +47,7 @@ import {
   UserX,
 } from "lucide-react"
 import Link from "next/link"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface AgencyRow {
   id: string
@@ -69,6 +71,25 @@ export default function AgenciesManagementPage() {
   const [selectedAgency, setSelectedAgency] = useState<AgencyRow | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("all")
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{
+    open: boolean
+    title: string
+    description: string
+    variant?: "default" | "destructive"
+    agencyId: string
+    action:
+      | "approve"
+      | "reject"
+      | "deactivate"
+      | "moveToSpam"
+      | "setActive"
+      | "setInactive"
+      | "delete"
+      | "updateStatus"
+    approvalStatus?: string
+    isActive?: boolean
+  } | null>(null)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -76,6 +97,12 @@ export default function AgenciesManagementPage() {
       router.push("/admin/login")
       return
     }
+    const userData = JSON.parse(user)
+    if (userData.role !== "super_admin" && userData.role !== "admin") {
+      router.push("/")
+      return
+    }
+    setUserRole(userData.role)
     loadAgencies()
   }, [router])
 
@@ -152,6 +179,17 @@ export default function AgenciesManagementPage() {
     } finally {
       setActionLoading(null)
     }
+  }
+
+  const runConfirmedAction = async () => {
+    if (!confirmAction) return
+    const { agencyId, action, approvalStatus, isActive } = confirmAction
+    if (action === "updateStatus") {
+      await handleStatusUpdate(agencyId, approvalStatus ?? "pending", isActive)
+    } else {
+      await handleAction(agencyId, action)
+    }
+    setConfirmAction(null)
   }
 
   const getStatus = (agency: AgencyRow) =>
@@ -237,7 +275,13 @@ export default function AgenciesManagementPage() {
               size="sm"
               className="bg-green-600 hover:bg-green-700"
               disabled={!!actionLoading}
-              onClick={() => handleAction(agency.id, "approve")}
+              onClick={() => setConfirmAction({
+                open: true,
+                title: "Approve agency?",
+                description: "This agency will be approved and can access the platform.",
+                agencyId: agency.id,
+                action: "approve",
+              })}
               title="Approve"
             >
               {actionLoading === key("approve") ? (
@@ -250,7 +294,14 @@ export default function AgenciesManagementPage() {
               variant="destructive"
               size="sm"
               disabled={!!actionLoading}
-              onClick={() => handleAction(agency.id, "reject")}
+              onClick={() => setConfirmAction({
+                open: true,
+                title: "Reject agency?",
+                description: "This agency will be rejected and will not be able to access the platform.",
+                variant: "destructive",
+                agencyId: agency.id,
+                action: "reject",
+              })}
               title="Reject"
             >
               {actionLoading === key("reject") ? (
@@ -270,7 +321,14 @@ export default function AgenciesManagementPage() {
                 size="sm"
                 className="text-destructive hover:bg-destructive/10"
                 disabled={!!actionLoading}
-                onClick={() => handleAction(agency.id, "reject")}
+                onClick={() => setConfirmAction({
+                  open: true,
+                  title: "Reject agency?",
+                  description: "This agency will be rejected (after approval).",
+                  variant: "destructive",
+                  agencyId: agency.id,
+                  action: "reject",
+                })}
                 title="Reject (after approval)"
               >
                 {actionLoading === key("reject") ? (
@@ -285,7 +343,13 @@ export default function AgenciesManagementPage() {
                 variant="outline"
                 size="sm"
                 disabled={!!actionLoading}
-                onClick={() => handleAction(agency.id, "setInactive")}
+                onClick={() => setConfirmAction({
+                  open: true,
+                  title: "Set inactive?",
+                  description: "This agency will be set to inactive and will not be able to access the platform until reactivated.",
+                  agencyId: agency.id,
+                  action: "setInactive",
+                })}
                 title="Set Inactive"
               >
                 {actionLoading === key("setInactive") ? (
@@ -300,7 +364,13 @@ export default function AgenciesManagementPage() {
                 size="sm"
                 className="text-green-600 hover:bg-green-500/10"
                 disabled={!!actionLoading}
-                onClick={() => handleAction(agency.id, "setActive")}
+                onClick={() => setConfirmAction({
+                  open: true,
+                  title: "Set active?",
+                  description: "This agency will be activated and can access the platform again.",
+                  agencyId: agency.id,
+                  action: "setActive",
+                })}
                 title="Set Active"
               >
                 {actionLoading === key("setActive") ? (
@@ -319,7 +389,14 @@ export default function AgenciesManagementPage() {
             size="sm"
             className="text-amber-600 hover:bg-amber-500/10"
             disabled={!!actionLoading}
-            onClick={() => handleAction(agency.id, "moveToSpam")}
+            onClick={() => setConfirmAction({
+              open: true,
+              title: "Move to spam?",
+              description: "This agency will be moved to spam. You can delete it permanently from the Spam tab.",
+              variant: "destructive",
+              agencyId: agency.id,
+              action: "moveToSpam",
+            })}
             title="Move to spam"
           >
             {actionLoading === key("moveToSpam") ? (
@@ -335,7 +412,14 @@ export default function AgenciesManagementPage() {
             variant="destructive"
             size="sm"
             disabled={!!actionLoading}
-            onClick={() => handleAction(agency.id, "delete")}
+            onClick={() => setConfirmAction({
+              open: true,
+              title: "Delete permanently?",
+              description: "This agency will be permanently deleted. This action cannot be undone.",
+              variant: "destructive",
+              agencyId: agency.id,
+              action: "delete",
+            })}
             title="Delete permanently"
           >
             {actionLoading === key("delete") ? (
@@ -426,16 +510,7 @@ export default function AgenciesManagementPage() {
       <Header />
       <main className="flex-1 bg-background p-4 md:p-8">
         <div className="container mx-auto max-w-7xl">
-          <nav className="mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-4">
-            <Link
-              href="/admin/dashboard"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Dashboard
-            </Link>
-            <span className="text-muted-foreground">/</span>
-            <span className="text-sm font-medium text-primary">Agencies</span>
-          </nav>
+          <AdminNav role={userRole ?? undefined} />
 
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -592,7 +667,14 @@ export default function AgenciesManagementPage() {
                     <label className="text-xs text-muted-foreground">Status</label>
                     <Select
                       value={getStatus(selectedAgency)}
-                      onValueChange={(v) => handleStatusUpdate(selectedAgency.id, v)}
+                      onValueChange={(v) => setConfirmAction({
+                        open: true,
+                        title: "Update status?",
+                        description: `Change agency status to "${v}"? This will update the agency's approval status.`,
+                        agencyId: selectedAgency.id,
+                        action: "updateStatus",
+                        approvalStatus: v,
+                      })}
                       disabled={!!actionLoading}
                     >
                       <SelectTrigger
@@ -613,13 +695,15 @@ export default function AgenciesManagementPage() {
                       <label className="text-xs text-muted-foreground">Active</label>
                       <Select
                         value={selectedAgency.isActive ? "active" : "inactive"}
-                        onValueChange={(v) =>
-                          handleStatusUpdate(
-                            selectedAgency.id,
-                            getStatus(selectedAgency),
-                            v === "active"
-                          )
-                        }
+                        onValueChange={(v) => setConfirmAction({
+                          open: true,
+                          title: "Update active status?",
+                          description: `Set agency to ${v}?`,
+                          agencyId: selectedAgency.id,
+                          action: "updateStatus",
+                          approvalStatus: getStatus(selectedAgency),
+                          isActive: v === "active",
+                        })}
                         disabled={!!actionLoading}
                       >
                         <SelectTrigger className="w-[120px]">
@@ -666,7 +750,13 @@ export default function AgenciesManagementPage() {
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700"
                     disabled={!!actionLoading}
-                    onClick={() => handleAction(selectedAgency.id, "approve")}
+                    onClick={() => setConfirmAction({
+                      open: true,
+                      title: "Approve agency?",
+                      description: "This agency will be approved and can access the platform.",
+                      agencyId: selectedAgency.id,
+                      action: "approve",
+                    })}
                   >
                     {actionLoading === selectedAgency.id + "approve" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -679,7 +769,14 @@ export default function AgenciesManagementPage() {
                     variant="destructive"
                     className="flex-1"
                     disabled={!!actionLoading}
-                    onClick={() => handleAction(selectedAgency.id, "reject")}
+                    onClick={() => setConfirmAction({
+                      open: true,
+                      title: "Reject agency?",
+                      description: "This agency will be rejected and will not be able to access the platform.",
+                      variant: "destructive",
+                      agencyId: selectedAgency.id,
+                      action: "reject",
+                    })}
                   >
                     {actionLoading === selectedAgency.id + "reject" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -698,7 +795,14 @@ export default function AgenciesManagementPage() {
                       variant="outline"
                       className="text-destructive hover:bg-destructive/10"
                       disabled={!!actionLoading}
-                      onClick={() => handleAction(selectedAgency.id, "reject")}
+                      onClick={() => setConfirmAction({
+                        open: true,
+                        title: "Reject agency?",
+                        description: "This agency will be rejected (after approval).",
+                        variant: "destructive",
+                        agencyId: selectedAgency.id,
+                        action: "reject",
+                      })}
                     >
                       Reject (after approval)
                     </Button>
@@ -707,7 +811,13 @@ export default function AgenciesManagementPage() {
                     <Button
                       variant="outline"
                       disabled={!!actionLoading}
-                      onClick={() => handleAction(selectedAgency.id, "setInactive")}
+                      onClick={() => setConfirmAction({
+                        open: true,
+                        title: "Set inactive?",
+                        description: "This agency will be set to inactive.",
+                        agencyId: selectedAgency.id,
+                        action: "setInactive",
+                      })}
                     >
                       Set Inactive
                     </Button>
@@ -716,7 +826,13 @@ export default function AgenciesManagementPage() {
                       variant="outline"
                       className="text-green-600 hover:bg-green-500/10"
                       disabled={!!actionLoading}
-                      onClick={() => handleAction(selectedAgency.id, "setActive")}
+                      onClick={() => setConfirmAction({
+                        open: true,
+                        title: "Set active?",
+                        description: "This agency will be activated.",
+                        agencyId: selectedAgency.id,
+                        action: "setActive",
+                      })}
                     >
                       Set Active
                     </Button>
@@ -725,7 +841,14 @@ export default function AgenciesManagementPage() {
                     variant="outline"
                     className="text-amber-600 hover:bg-amber-500/10"
                     disabled={!!actionLoading}
-                    onClick={() => handleAction(selectedAgency.id, "moveToSpam")}
+                    onClick={() => setConfirmAction({
+                      open: true,
+                      title: "Move to spam?",
+                      description: "This agency will be moved to spam. You can delete it permanently from the Spam tab.",
+                      variant: "destructive",
+                      agencyId: selectedAgency.id,
+                      action: "moveToSpam",
+                    })}
                   >
                     <Archive className="mr-2 h-4 w-4" />
                     Move to Spam
@@ -739,7 +862,14 @@ export default function AgenciesManagementPage() {
                     variant="destructive"
                     className="flex-1"
                     disabled={!!actionLoading}
-                    onClick={() => handleAction(selectedAgency.id, "delete")}
+                    onClick={() => setConfirmAction({
+                      open: true,
+                      title: "Delete permanently?",
+                      description: "This agency will be permanently deleted. This action cannot be undone.",
+                      variant: "destructive",
+                      agencyId: selectedAgency.id,
+                      action: "delete",
+                    })}
                   >
                     {actionLoading === selectedAgency.id + "delete" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -754,6 +884,19 @@ export default function AgenciesManagementPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {confirmAction && (
+        <ConfirmDialog
+          open={confirmAction.open}
+          onOpenChange={(open) => !open && setConfirmAction(null)}
+          title={confirmAction.title}
+          description={confirmAction.description}
+          variant={confirmAction.variant}
+          confirmLabel="Confirm"
+          onConfirm={runConfirmedAction}
+          loading={!!actionLoading}
+        />
+      )}
     </div>
   )
 }

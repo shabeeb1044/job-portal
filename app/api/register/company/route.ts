@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       contactPosition,
       password,
       confirmPassword,
+      proofDocumentUrl,
     } = body
 
     if (
@@ -37,10 +38,11 @@ export async function POST(request: NextRequest) {
       !contactPhone ||
       !contactPosition ||
       !password ||
-      !confirmPassword
+      !confirmPassword ||
+      !proofDocumentUrl
     ) {
       return NextResponse.json(
-        { error: 'All required fields are missing' },
+        { error: 'All required fields are required, including proof document' },
         { status: 400 }
       )
     }
@@ -87,6 +89,7 @@ export async function POST(request: NextRequest) {
       address,
       description,
       logoUrl: undefined,
+      proofDocumentUrl: proofDocumentUrl || undefined,
       contactName,
       contactEmail,
       contactPhone,

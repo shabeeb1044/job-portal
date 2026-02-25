@@ -30,21 +30,12 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
-const navLinks = [
-  { href: "/company/dashboard", label: "Dashboard", icon: Home },
-  { href: "/company/demands", label: "My Demands", icon: Briefcase },
-  { href: "/company/demands", label: "Candidates", icon: Users },
-  { href: "/company/demands", label: "Bidding Center", icon: Gavel },
-  { href: "/company/demands", label: "Shortlisted", icon: FileText },
-  { href: "#", label: "Messages", icon: MessageSquare },
-  { href: "#", label: "Analytics", icon: BarChart3 },
-]
-
 function getPageTitle(pathname: string): string {
   if (pathname === "/company/dashboard") return "Dashboard"
   if (pathname === "/company/demands") return "My Demands"
   if (pathname === "/company/demands/new") return "Create Demand"
   if (pathname.match(/^\/company\/demands\/[^/]+$/)) return "Submissions"
+   if (pathname === "/company/candidates") return "Candidates"
   return "Company"
 }
 
@@ -130,10 +121,10 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
         className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-border bg-card transition-transform lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Briefcase className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold text-foreground">TalentBid</span>
+          <Link href="/" className="flex items-center gap-2">
+            <img src="/main-logo.png" alt="TalentBid" className="h-9 w-auto" />
+            {/* <span className="text-xl font-bold text-foreground">TalentBid</span> */}
+          </Link>
         </div>
 
         <nav className="flex flex-col gap-1 p-4">
@@ -157,7 +148,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
             )}
           </Link>
           <Link
-            href="/company/demands"
+            href="/company/candidates"
             className="flex items-center gap-3 rounded-lg px-4 py-3 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Users className="h-5 w-5" />

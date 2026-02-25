@@ -14,7 +14,8 @@ import {
   ArrowRight,
 } from "lucide-react"
 import { PageLoader } from "@/components/page-loader"
-import { toast } from "sonner"
+import { MessageBanner } from "@/components/ui/message-banner"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface ApplicationRow {
   id: string
@@ -33,6 +34,8 @@ export default function ApplicationsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [agencyId, setAgencyId] = useState("")
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [withdrawConfirm, setWithdrawConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: "" })
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -58,8 +61,12 @@ export default function ApplicationsPage() {
     return matchSearch && matchStatus
   })
 
-  const handleWithdraw = async (id: string) => {
-    if (!confirm("Withdraw this application?")) return
+  const handleWithdraw = (id: string) => {
+    setWithdrawConfirm({ open: true, id })
+  }
+
+  const confirmWithdraw = async () => {
+    const id = withdrawConfirm.id
     try {
       const res = await fetch("/api/agency/submit", {
         method: "PATCH",
@@ -68,13 +75,13 @@ export default function ApplicationsPage() {
       })
       const data = await res.json()
       if (data.success) {
-        toast.success("Application withdrawn")
+        setMessage({ type: "success", text: "Application withdrawn" })
         setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "withdrawn" } : a))
       } else {
-        toast.error(data.error || "Failed to withdraw")
+        setMessage({ type: "error", text: data.error || "Failed to withdraw" })
       }
     } catch {
-      toast.error("Failed to withdraw")
+      setMessage({ type: "error", text: "Failed to withdraw" })
     }
   }
 
@@ -100,6 +107,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="space-y-6">
+      <MessageBanner message={message} onDismiss={() => setMessage(null)} className="mb-2" />
       <div>
         <h1 className="text-2xl font-bold">Applications Tracking</h1>
         <p className="text-sm text-muted-foreground">Track your submissions to companies</p>
@@ -203,6 +211,16 @@ export default function ApplicationsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={withdrawConfirm.open}
+        onOpenChange={(open) => setWithdrawConfirm(prev => ({ ...prev, open }))}
+        title="Withdraw application?"
+        description="Are you sure you want to withdraw this application? The company will no longer consider this submission."
+        confirmLabel="Withdraw"
+        variant="destructive"
+        onConfirm={confirmWithdraw}
+      />
     </div>
   )
 }

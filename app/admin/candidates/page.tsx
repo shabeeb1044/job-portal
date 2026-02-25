@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
+import { AdminNav } from "@/components/admin-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +25,7 @@ export default function CandidatesManagementPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
     const user = localStorage.getItem('user')
@@ -31,7 +33,12 @@ export default function CandidatesManagementPage() {
       router.push('/admin/login')
       return
     }
-
+    const userData = JSON.parse(user)
+    if (userData.role !== 'super_admin' && userData.role !== 'admin') {
+      router.push('/')
+      return
+    }
+    setUserRole(userData.role)
     loadCandidates()
   }, [router])
 
@@ -80,6 +87,7 @@ export default function CandidatesManagementPage() {
       <Header />
       <main className="flex-1 bg-background p-4 md:p-8">
         <div className="container mx-auto max-w-7xl">
+          <AdminNav role={userRole ?? undefined} />
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-foreground">Candidates Management</h1>

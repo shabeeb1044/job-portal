@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Building2, ArrowRight, Loader2, Upload, Check } from "lucide-react"
+import { Building2, ArrowRight, Loader2, Upload, Check, FileText, X } from "lucide-react"
 
 const industries = [
   "Construction", "Healthcare", "Hospitality", "IT & Technology",
@@ -56,16 +56,41 @@ export default function CompanyRegisterPage() {
     password: "",
     confirmPassword: "",
     logoFile: null as File | null,
+    companyProofFile: null as File | null,
     acceptTerms: false,
   })
   const [error, setError] = useState("")
+  const [uploadingProof, setUploadingProof] = useState(false)
 
   const updateForm = (field: string, value: string | boolean | File | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  const uploadCompanyProof = async (): Promise<string | null> => {
+    if (!formData.companyProofFile) return null
+    setUploadingProof(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", formData.companyProofFile)
+      fd.append("type", "proof")
+      const res = await fetch("/api/upload", { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Upload failed")
+      return data.url
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Document upload failed")
+      return null
+    } finally {
+      setUploadingProof(false)
+    }
+  }
+
   const handleSubmit = async () => {
     setError("")
+    if (!formData.companyProofFile) {
+      setError("Please upload a proof document (PDF/DOC/DOCX)")
+      return
+    }
     if (formData.password !== formData.confirmPassword) {
       setError("Password and confirm password do not match")
       return
@@ -76,6 +101,11 @@ export default function CompanyRegisterPage() {
     }
     setLoading(true)
     try {
+      const proofDocumentUrl = await uploadCompanyProof()
+      if (!proofDocumentUrl) {
+        setLoading(false)
+        return
+      }
       const response = await fetch("/api/register/company", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -95,6 +125,7 @@ export default function CompanyRegisterPage() {
           contactPosition: formData.contactPosition,
           password: formData.password,
           confirmPassword: formData.confirmPassword,
+          proofDocumentUrl,
         }),
       })
       const data = await response.json()
@@ -158,6 +189,57 @@ export default function CompanyRegisterPage() {
                       value={formData.tradeLicense}
                       onChange={(e) => updateForm("tradeLicense", e.target.value)}
                     />
+                  </div>
+
+                  {/* Company Proof (document upload) */}
+                  <div className="space-y-2">
+                    <Label>Company Proof Document *</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Upload trade license or company registration document (PDF, DOC, DOCX, max 10MB)
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <label className="flex h-20 min-w-[140px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted px-4 hover:border-primary">
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const valid = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+                            if (!valid.includes(file.type)) {
+                              setError("Only PDF, DOC, or DOCX files are allowed")
+                              return
+                            }
+                            if (file.size > 10 * 1024 * 1024) {
+                              setError("File size must be under 10 MB")
+                              return
+                            }
+                            setError("")
+                            updateForm("companyProofFile", file)
+                          }}
+                        />
+                        {formData.companyProofFile ? (
+                          <>
+                            <Check className="h-5 w-5 text-green-600" />
+                            <span className="truncate text-sm font-medium max-w-[100px]">{formData.companyProofFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateForm("companyProofFile", null) }}
+                              className="rounded p-1 hover:bg-muted-foreground/20"
+                              aria-label="Remove file"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-6 w-6 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Upload document</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
                   </div>
 
                   {/* Industry & Size */}
@@ -381,9 +463,9 @@ export default function CompanyRegisterPage() {
                     <Button
                       className="flex-1 gap-2"
                       onClick={handleSubmit}
-                      disabled={loading || !formData.acceptTerms}
+                      disabled={loading || uploadingProof || !formData.acceptTerms}
                     >
-                      {loading ? (
+                      {loading || uploadingProof ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>

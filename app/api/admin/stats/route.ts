@@ -25,14 +25,20 @@ export async function GET() {
       .filter(p => isToday(p.createdAt))
       .reduce((sum, p) => sum + p.amount, 0)
 
+    const pendingAgencyCount = agencies.filter(
+      (a) => (a as { approvalStatus?: string }).approvalStatus === 'pending'
+    ).length
+    const pendingCompanyCount = companies.filter(
+      (c) => !c.subscriptionStatus || c.subscriptionStatus !== 'active'
+    ).length
+
     const stats = {
       totalCandidates: candidates.length,
       totalAgencies: agencies.length,
       totalCompanies: companies.length,
       totalBids: bids.length,
       totalRevenue,
-      pendingApprovals: agencies.filter(a => a.subscriptionStatus !== 'active').length +
-        companies.filter(c => !c.subscriptionStatus || c.subscriptionStatus !== 'active').length,
+      pendingApprovals: pendingAgencyCount + pendingCompanyCount,
       activeSubscriptions: subscriptions.filter(s => s.status === 'active').length,
       interviewsScheduled: interviews.filter(i => i.status === 'scheduled').length,
       newCandidatesToday: candidates.filter(c => isToday(c.createdAt)).length,
