@@ -298,8 +298,8 @@ export default function CompanyDashboard() {
                       >
                         {s.status}
                       </Badge>
-                      <Button size="sm" variant="ghost" asChild>
-                        <Link href={`/company/demands/${s.demandId}`}>Review</Link>
+                      <Button size="sm" variant="ghost">
+                        Review
                       </Button>
                     </div>
                   </Link>

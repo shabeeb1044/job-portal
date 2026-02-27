@@ -20,6 +20,8 @@ const nationalities = [
 
 const genders = ["Male", "Female", "Prefer not to say"]
 
+const maritalStatuses = ["Single", "Married", "Divorced", "Widowed", "Prefer not to say"]
+
 interface PersonalInfoStepProps {
   formData: CandidateFormData
   updateFormData: (data: Partial<CandidateFormData>) => void
@@ -116,6 +118,66 @@ export function PersonalInfoStep({ formData, updateFormData }: PersonalInfoStepP
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Date of Birth */}
+      <div className="space-y-2">
+        <Label htmlFor="dateOfBirth">Date of Birth</Label>
+        <Input
+          id="dateOfBirth"
+          type="date"
+          value={formData.dateOfBirth}
+          onChange={(e) => updateFormData({ dateOfBirth: e.target.value })}
+        />
+      </div>
+
+      {/* Marital Status */}
+      <div className="space-y-2">
+        <Label>Marital Status</Label>
+        <Select
+          value={formData.maritalStatus}
+          onValueChange={(value) => updateFormData({ maritalStatus: value })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            {maritalStatuses.map((status) => (
+              <SelectItem key={status} value={status.toLowerCase()}>
+                {status}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Current Location */}
+      <div className="space-y-2">
+        <Label htmlFor="currentLocation">Current Location</Label>
+        <Input
+          id="currentLocation"
+          placeholder="e.g. Dubai, UAE"
+          value={formData.currentLocation}
+          onChange={(e) => updateFormData({ currentLocation: e.target.value })}
+        />
+      </div>
+
+      {/* Preferred Locations */}
+      <div className="space-y-2">
+        <Label htmlFor="preferredLocations">Preferred job locations</Label>
+        <Input
+          id="preferredLocations"
+          placeholder="e.g. Dubai, Abu Dhabi, Sharjah (comma-separated)"
+          value={(formData.preferredLocations || []).join(", ")}
+          onChange={(e) =>
+            updateFormData({
+              preferredLocations: e.target.value
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+            })
+          }
+        />
       </div>
     </div>
   )

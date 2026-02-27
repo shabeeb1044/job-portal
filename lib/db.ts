@@ -232,20 +232,50 @@ export interface Agent {
   updatedAt: string
 }
 
+export type BenefitType =
+  | 'food'
+  | 'accommodation'
+  | 'transportation'
+  | 'visa'
+  | 'medical_insurance'
+  | 'other'
+
+export type NationalityType =
+  | 'india'
+  | 'nepal'
+  | 'indonesia'
+  | 'sri_lanka'
+  | 'any'
+
 export interface Demand {
   id: string
   companyId: string
   companyName: string
   jobTitle: string
   description: string
+  // Hiring details
+  quantity: number
+  filledPositions: number
   requirements: string[]
   skills: string[]
-  salary: { min: number; max: number; currency: string }
-  gender: string
+  // Salary
+  salary: {
+    amount: number
+    currency: string
+  }
+  // Work schedule
+  dutyHoursPerDay: number
+  breakTimeHours: number
+  dayOffPerMonth: number
+  // Benefits & eligibility
+  benefits: BenefitType[]
+  gender: 'male' | 'female' | 'any'
+  nationality: NationalityType[]
+  // Location & timing
   location: string
-  positions: number
-  filledPositions: number
+  joining: 'immediate' | 'scheduled'
   status: 'open' | 'closed' | 'on_hold'
+  // Dates
   deadline: string
   createdAt: string
   updatedAt: string
@@ -294,6 +324,18 @@ export interface Settings {
   id: string
   key: string
   value: any
+  updatedAt: string
+}
+
+export interface JobCategory {
+  id: string
+  slug: string
+  name: string
+  emoji: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
   updatedAt: string
 }
 
@@ -911,6 +953,52 @@ export const db = {
       return points.map(doc => toInterface<AgentPoint>(doc))
     },
   },
+  jobCategories: {
+    getAll: async (activeOnly = false): Promise<JobCategory[]> => {
+      const db = await getDatabase()
+      const filter = activeOnly ? { isActive: true } : {}
+      const list = await db.collection('jobCategories').find(filter).sort({ sortOrder: 1, name: 1 }).toArray()
+      return list.map(doc => toInterface<JobCategory>(doc))
+    },
+    getById: async (id: string): Promise<JobCategory | undefined> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const doc = await db.collection('jobCategories').findOne(query)
+      return doc ? toInterface<JobCategory>(doc) : undefined
+    },
+    getBySlug: async (slug: string): Promise<JobCategory | undefined> => {
+      const db = await getDatabase()
+      const doc = await db.collection('jobCategories').findOne({ slug })
+      return doc ? toInterface<JobCategory>(doc) : undefined
+    },
+    create: async (cat: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'>): Promise<JobCategory> => {
+      const db = await getDatabase()
+      const now = new Date().toISOString()
+      const newCat = { ...cat, createdAt: now, updatedAt: now }
+      const result = await db.collection('jobCategories').insertOne(newCat)
+      return toInterface<JobCategory>({ ...newCat, _id: result.insertedId })
+    },
+    update: async (id: string, updates: Partial<JobCategory>): Promise<JobCategory | null> => {
+      const db = await getDatabase()
+      const updateDoc = { ...updates, updatedAt: new Date().toISOString() }
+      delete (updateDoc as any).id
+      delete (updateDoc as any).createdAt
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const result = await db.collection('jobCategories').findOneAndUpdate(
+        query,
+        { $set: updateDoc },
+        { returnDocument: 'after' }
+      )
+      const doc = result?.value ?? result
+      return doc ? toInterface<JobCategory>(doc) : null
+    },
+    delete: async (id: string): Promise<boolean> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const result = await db.collection('jobCategories').deleteOne(query)
+      return (result.deletedCount ?? 0) > 0
+    },
+  },
 }
 
 // Initialize default plans and super admin
@@ -945,6 +1033,8 @@ export async function initializeDatabase() {
     await database.collection('applications').createIndex({ candidateId: 1 })
     await database.collection('agentPoints').createIndex({ agentId: 1 })
     await database.collection('agentPoints').createIndex({ agencyId: 1 })
+    await database.collection('jobCategories').createIndex({ slug: 1 }, { unique: true })
+    await database.collection('jobCategories').createIndex({ sortOrder: 1 })
     await database.collection('candidateSources').createIndex({ agencyId: 1 })
     await database.collection('candidateSources').createIndex({ agentId: 1 })
   } catch (e) {
@@ -1028,6 +1118,29 @@ export async function initializeDatabase() {
       isActive: true,
     })
     console.log('Super admin created:', adminUser.email)
+  }
+
+  // Seed default job categories if none exist
+  const existingCategories = await db.jobCategories.getAll()
+  if (existingCategories.length === 0) {
+    const defaults: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'>[] = [
+      { slug: 'construction', name: 'Construction', emoji: '👷', description: 'Construction workers, laborers', sortOrder: 1, isActive: true },
+      { slug: 'driver', name: 'Driver', emoji: '🚚', description: 'Taxi, truck, delivery drivers', sortOrder: 2, isActive: true },
+      { slug: 'cook', name: 'Cook', emoji: '🍳', description: 'Chefs, kitchen staff', sortOrder: 3, isActive: true },
+      { slug: 'cleaner', name: 'Cleaner', emoji: '🧹', description: 'Housekeeping, janitorial', sortOrder: 4, isActive: true },
+      { slug: 'office', name: 'Office Staff', emoji: '🖥️', description: 'Admin, clerical, reception', sortOrder: 5, isActive: true },
+      { slug: 'security', name: 'Security', emoji: '🛡️', description: 'Guards, security officers', sortOrder: 6, isActive: true },
+      { slug: 'retail', name: 'Retail', emoji: '🛒', description: 'Sales, cashiers, store staff', sortOrder: 7, isActive: true },
+      { slug: 'healthcare', name: 'Healthcare', emoji: '🏥', description: 'Nurses, caregivers, medical', sortOrder: 8, isActive: true },
+      { slug: 'hospitality', name: 'Hospitality', emoji: '🏨', description: 'Hotel, restaurant staff', sortOrder: 9, isActive: true },
+      { slug: 'beauty', name: 'Beauty & Salon', emoji: '💇', description: 'Hair stylists, beauticians', sortOrder: 10, isActive: true },
+      { slug: 'delivery', name: 'Delivery', emoji: '📦', description: 'Delivery personnel', sortOrder: 11, isActive: true },
+      { slug: 'maintenance', name: 'Maintenance', emoji: '🔧', description: 'Technicians, repairmen', sortOrder: 12, isActive: true },
+    ]
+    for (const cat of defaults) {
+      await db.jobCategories.create(cat)
+    }
+    console.log('Default job categories seeded')
   }
 
   // Initialize settings

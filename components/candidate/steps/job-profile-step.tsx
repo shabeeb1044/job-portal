@@ -480,7 +480,7 @@ export function JobProfileStep({ formData, updateFormData }: JobProfileStepProps
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Minimum</span>
               <span className="font-medium">
-                ${formData.salaryRange?.min || 500} / month
+                {formData.salaryRange?.min || 500} AED  / month
               </span>
             </div>
             <Slider
@@ -499,7 +499,7 @@ export function JobProfileStep({ formData, updateFormData }: JobProfileStepProps
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Maximum</span>
               <span className="font-medium">
-                ${formData.salaryRange?.max || 5000} / month
+                {formData.salaryRange?.max || 5000 } AED / month
               </span>
             </div>
             <Slider
@@ -517,7 +517,7 @@ export function JobProfileStep({ formData, updateFormData }: JobProfileStepProps
           {formData.salaryRange && (
             <div className="mt-4 rounded-lg bg-primary/5 p-3 text-center">
               <p className="text-sm font-medium text-foreground">
-                Salary Range: ${formData.salaryRange.min.toLocaleString()} - ${formData.salaryRange.max.toLocaleString()} / month
+                Salary Range: AED {formData.salaryRange.min.toLocaleString()} - AED {formData.salaryRange.max.toLocaleString()} / month
               </p>
             </div>
           )}

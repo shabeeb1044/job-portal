@@ -1,9 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -34,10 +33,11 @@ import {
   FileText,
   MessageSquare,
   Heart,
+  Loader2,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
-// Mock data
+// Mock stats (can be replaced with API later)
 const stats = [
   { label: "Profile Views", value: "6000+", change: "+12%", icon: Eye },
   { label: "Active Bids", value: "8", change: "+3", icon: TrendingUp },
@@ -45,35 +45,19 @@ const stats = [
   { label: "Avg. Bid Amount", value: "$2,500", change: "+8%", icon: DollarSign },
 ]
 
-const activeBids = [
-  {
-    id: 1,
-    company: "Gulf Construction LLC",
-    position: "Senior Civil Engineer",
-    location: "Dubai, UAE",
-    bidAmount: "$3,500",
-    status: "pending",
-    date: "2 hours ago",
-  },
-  {
-    id: 2,
-    company: "Al Futtaim Group",
-    position: "Project Manager",
-    location: "Abu Dhabi, UAE",
-    bidAmount: "$4,200",
-    status: "accepted",
-    date: "1 day ago",
-  },
-  {
-    id: 3,
-    company: "Emaar Properties",
-    position: "Site Engineer",
-    location: "Dubai, UAE",
-    bidAmount: "$2,800",
-    status: "pending",
-    date: "3 days ago",
-  },
-]
+function formatBidDate(createdAt: string): string {
+  if (!createdAt) return ""
+  const d = new Date(createdAt)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffMins < 60) return `${diffMins} min ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`
+  return d.toLocaleDateString()
+}
 
 export default function CandidateDashboard() {
   const { theme, setTheme } = useTheme()
@@ -81,6 +65,68 @@ export default function CandidateDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  const [displayName, setDisplayName] = useState("Candidate")
+  const [initials, setInitials] = useState("C")
+  const [profileCompletion, setProfileCompletion] = useState<number | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [loadingBids, setLoadingBids] = useState(true)
+  const [activeBids, setActiveBids] = useState<Array<{
+    id: string
+    companyName: string
+    position: string
+    location?: string
+    bidAmount: number
+    status: string
+    createdAt: string
+  }>>([])
+
+  useEffect(() => {
+    const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        const name = user.name || user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || "Candidate"
+        setDisplayName(name)
+        const parts = name.trim().split(" ").filter(Boolean)
+        setInitials(parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2) || "C")
+        const id = user.id
+        if (id) {
+          fetch(`/api/candidate/profile?candidateId=${encodeURIComponent(id)}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.profileCompletion != null) setProfileCompletion(data.profileCompletion)
+            })
+            .catch(() => {})
+            .finally(() => setLoadingProfile(false))
+          fetch(`/api/bids/candidate?candidateId=${encodeURIComponent(id)}`)
+            .then((res) => res.ok ? res.json() : { bids: [] })
+            .then((data) => {
+              const list = Array.isArray(data.bids) ? data.bids : []
+              setActiveBids(list.map((b: { id: string; companyName?: string; amount: number; status: string; createdAt: string }) => ({
+                id: b.id,
+                companyName: b.companyName || "Company",
+                position: "Position",
+                location: undefined,
+                bidAmount: b.amount ?? 0,
+                status: b.status || "pending",
+                createdAt: b.createdAt || "",
+              })))
+            })
+            .catch(() => setActiveBids([]))
+            .finally(() => setLoadingBids(false))
+        } else {
+          setLoadingProfile(false)
+          setLoadingBids(false)
+        }
+      } catch {
+        setLoadingProfile(false)
+        setLoadingBids(false)
+      }
+    } else {
+      setLoadingProfile(false)
+      setLoadingBids(false)
+    }
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem("user")
@@ -199,16 +245,24 @@ export default function CandidateDashboard() {
             <CardContent className="flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-foreground">
-                  85%
+                  {loadingProfile ? "—" : `${profileCompletion ?? 0}%`}
                 </div>
                 <div>
-                  <p className="font-medium text-foreground">Complete your profile</p>
-                  <p className="text-sm text-muted-foreground">Add a video profile to increase visibility by 5x</p>
+                  <p className="font-medium text-foreground">Profile completion</p>
+                  <p className="text-sm text-muted-foreground">
+                    {profileCompletion == null && loadingProfile
+                      ? "Loading…"
+                      : (profileCompletion ?? 0) >= 100
+                        ? "Your profile is complete."
+                        : "Add date of birth, location, marital status, skills & more to increase completion."}
+                  </p>
                 </div>
               </div>
-              <Link href="/candidate/profile">
-                <Button>Complete Profile</Button>
-              </Link>
+              {(profileCompletion == null || profileCompletion < 100) && (
+                <Link href="/candidate/profile/edit">
+                  <Button>Update Now</Button>
+                </Link>
+              )}
             </CardContent>
           </Card>
 
@@ -243,7 +297,7 @@ export default function CandidateDashboard() {
               </Button>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {loadingBids ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>

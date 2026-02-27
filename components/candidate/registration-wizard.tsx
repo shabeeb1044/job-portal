@@ -34,6 +34,10 @@ export type CandidateFormData = {
   phone: string
   gender: string
   nationality: string
+  dateOfBirth: string
+  currentLocation: string
+  preferredLocations: string[]
+  maritalStatus: string
   languages: string[]
   // Job & Profile (Step 2)
   jobCategories: string[]
@@ -69,6 +73,10 @@ const initialFormData: CandidateFormData = {
   phone: "",
   gender: "",
   nationality: "",
+  dateOfBirth: "",
+  currentLocation: "",
+  preferredLocations: [],
+  maritalStatus: "",
   languages: [],
   jobCategories: [],
   totalExperience: "",
@@ -164,6 +172,10 @@ export function CandidateRegistrationWizard() {
       formDataToSend.append('whatsapp', formData.whatsapp)
       formDataToSend.append('gender', formData.gender)
       formDataToSend.append('nationality', formData.nationality)
+      if (formData.dateOfBirth) formDataToSend.append('dateOfBirth', formData.dateOfBirth)
+      if (formData.currentLocation) formDataToSend.append('currentLocation', formData.currentLocation)
+      if (formData.preferredLocations?.length) formDataToSend.append('preferredLocations', JSON.stringify(formData.preferredLocations))
+      if (formData.maritalStatus) formDataToSend.append('maritalStatus', formData.maritalStatus)
       formDataToSend.append('jobCategories', JSON.stringify(formData.jobCategories))
       formDataToSend.append('totalExperience', formData.totalExperience)
       formDataToSend.append('qualification', formData.qualification)
@@ -200,7 +212,7 @@ export function CandidateRegistrationWizard() {
         localStorage.setItem('token', 'candidate_token_' + Date.now())
       }
 
-      router.push("/candidate/profile")
+      router.push("/candidate/dashboard")
     } catch (error) {
       console.error('Registration error:', error)
       alert('Network error. Please try again.')

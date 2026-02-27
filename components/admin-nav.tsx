@@ -17,6 +17,7 @@ import {
   CreditCard,
   Settings,
   Shield,
+  Tags,
 } from "lucide-react"
 
 const navItems = [
@@ -31,6 +32,10 @@ const navItems = [
   { href: "/admin/interviews", label: "Interviews", icon: Video },
   { href: "/admin/plans", label: "Plans", icon: CreditCard },
   { href: "/admin/settings", label: "Settings", icon: Settings },
+]
+
+const superAdminOnlyNavItems = [
+  { href: "/admin/job-categories", label: "Job Categories", icon: Tags },
 ]
 
 export function AdminNav({ role }: { role?: string }) {
@@ -66,6 +71,26 @@ export function AdminNav({ role }: { role?: string }) {
           </Link>
         )
       })}
+      {role === "super_admin" &&
+        superAdminOnlyNavItems.map((item) => {
+          const Icon = item.icon
+          const isActive = pathname === item.href
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </Link>
+          )
+        })}
     </nav>
   )
 }

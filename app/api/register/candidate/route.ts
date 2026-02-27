@@ -55,7 +55,11 @@ export async function POST(request: NextRequest) {
     const whatsapp = formData.get('whatsapp') as string
     const gender = formData.get('gender') as string
     const nationality = formData.get('nationality') as string
+    const dateOfBirth = (formData.get('dateOfBirth') as string) || ''
+    const currentLocation = (formData.get('currentLocation') as string) || ''
+    const maritalStatus = (formData.get('maritalStatus') as string) || ''
     const jobCategoriesStr = formData.get('jobCategories') as string
+    const preferredLocationsStr = formData.get('preferredLocations') as string
     const totalExperience = formData.get('totalExperience') as string
     const qualification = formData.get('qualification') as string
     const salaryRangeStr = formData.get('salaryRange') as string
@@ -71,6 +75,11 @@ export async function POST(request: NextRequest) {
 
     try {
       jobCategories = jobCategoriesStr ? JSON.parse(jobCategoriesStr) : []
+    } catch {}
+
+    let preferredLocations: string[] = []
+    try {
+      preferredLocations = preferredLocationsStr ? JSON.parse(preferredLocationsStr) : []
     } catch {}
 
     try {
@@ -189,11 +198,11 @@ export async function POST(request: NextRequest) {
       phone: whatsapp,
       gender,
       nationality,
-      dateOfBirth: '',
-      currentLocation: '',
-      preferredLocations: [],
+      dateOfBirth,
+      currentLocation,
+      preferredLocations,
       languages: [],
-      maritalStatus: '',
+      maritalStatus,
       jobCategories,
       totalExperience,
       expectedSalary: salaryRange ? `${salaryRange.min}-${salaryRange.max}` : '',
