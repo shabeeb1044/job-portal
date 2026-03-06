@@ -1,13 +1,21 @@
-import { db, initializeDatabase, type CreateAgencyInput, type CreateCompanyInput } from './lib/db'
-import { hashPassword } from './lib/auth'
+import dotenv from 'dotenv'
+import path from 'path'
+import type { CreateAgencyInput, CreateCompanyInput } from './lib/db'
+
+// Load .env.local before any module that reads DATABASE_URL (standalone scripts don't get Next.js env loading)
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 
 async function seed() {
+  // Load db and auth after env is set so lib/mongodb sees DATABASE_URL
+  const { db, initializeDatabase } = await import('./lib/db')
+  const { hashPassword } = await import('./lib/auth')
+
   console.log('Starting database seed with demo users...')
 
   await initializeDatabase()
 
   // Demo admin user (for /admin/login)
-  const adminEmail = 'admin@example.com'
+  const adminEmail = '7start@gmail.com'
   const adminPasswordPlain = 'admin123'
 
   const existingAdmin = await db.users.getByEmail(adminEmail)
@@ -15,8 +23,8 @@ async function seed() {
     const admin = await db.users.create({
       email: adminEmail,
       password: hashPassword(adminPasswordPlain),
-      role: 'admin',
-      name: 'Demo Admin',
+      role: 'super_admin',
+      name: 'Main Admin',
       isActive: true,
     })
     console.log('Created admin user:', admin.email, 'password:', adminPasswordPlain)
