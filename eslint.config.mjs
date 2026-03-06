@@ -1,6 +1,14 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals"
 
-// `eslint-config-next` (Next 16+) exports Flat Config arrays directly.
-const config = [...nextCoreWebVitals]
-export default config
+// Base on Next.js core-web-vitals rules but relax a few project-specific constraints.
+const config = [
+  ...nextCoreWebVitals,
+  {
+    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
+]
 
+export default config

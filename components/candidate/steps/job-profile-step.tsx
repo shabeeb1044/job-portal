@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useCallback } from "react"
+import React, { useState, useRef, useCallback, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -72,6 +72,12 @@ export function JobProfileStep({ formData, updateFormData }: JobProfileStepProps
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cvInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
+
   const handleSalaryRangeChange = (values: number[]) => {
     updateFormData({
       salaryRange: { min: values[0], max: values[1] },
@@ -113,9 +119,6 @@ export function JobProfileStep({ formData, updateFormData }: JobProfileStepProps
         audio: true,
       })
       setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
       setVideoMode("record")
     } catch (err) {
       console.error("Error accessing camera:", err)

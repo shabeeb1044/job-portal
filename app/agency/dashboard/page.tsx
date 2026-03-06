@@ -215,7 +215,7 @@ export default function AgencyDashboard() {
       >
         <div>
           <h1 className={`text-2xl font-bold tracking-tight ${cardText}`}>Agency Dashboard</h1>
-          <p className={`text-sm mt-0.5 ${cardMutedText}`}>Welcome back — here's your overview</p>
+          <p className={`text-sm mt-0.5 ${cardMutedText}`}>Welcome back — here’s your overview</p>
         </div>
         <span
           className="px-4 py-1.5 text-sm font-semibold border-0 capitalize rounded-xl flex items-center justify-center gap-2"

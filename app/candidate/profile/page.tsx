@@ -140,12 +140,17 @@ export default function CandidateProfilePage() {
         audio: true,
       })
       setStream(mediaStream)
-      if (videoRef.current) videoRef.current.srcObject = mediaStream
       setVideoMode("record")
     } catch {
       alert("Unable to access camera. Please check permissions.")
     }
   }, [])
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
 
   const stopCamera = useCallback(() => {
     if (stream) {

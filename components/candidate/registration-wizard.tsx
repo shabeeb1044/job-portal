@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Link2,
+  Loader2,
 } from "lucide-react"
 import { PersonalInfoStep } from "./steps/personal-info-step"
 import { JobProfileStep } from "./steps/job-profile-step"
@@ -112,6 +113,8 @@ export function CandidateRegistrationWizard() {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<CandidateFormData>(initialFormData)
   const [referralCode, setReferralCode] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     const ref = searchParams.get("ref")?.trim() || null
@@ -137,45 +140,48 @@ export function CandidateRegistrationWizard() {
   }
 
   const handleSubmit = async () => {
+    setError(null)
+
     // Validation
     if (!formData.fullName || !formData.email || !formData.whatsapp || !formData.gender || !formData.nationality) {
-      alert('Please complete all personal information fields.')
+      setError("Please complete all personal information fields.")
       return
     }
     if (!formData.password || formData.password.length < 6) {
-      alert('Please set a password with at least 6 characters.')
+      setError("Please set a password with at least 6 characters.")
       return
     }
     if (formData.password !== formData.confirmPassword) {
-      alert('Password and confirm password must match.')
+      setError("Password and confirm password must match.")
       return
     }
     if (!formData.jobCategories || formData.jobCategories.length === 0) {
-      alert('Please select at least one job category.')
+      setError("Please select at least one job category.")
       return
     }
     if (!formData.totalExperience || !formData.qualification) {
-      alert('Please fill in experience and qualification.')
+      setError("Please fill in experience and qualification.")
       return
     }
     if (!formData.cvFile) {
-      alert('Please upload your CV.')
+      setError("Please upload your CV.")
       return
     }
     if (!formData.videoFile) {
-      alert('Please record or upload your video introduction.')
+      setError("Please record or upload your video introduction.")
       return
     }
     if (!formData.salaryRange) {
-      alert('Please set your expected salary range.')
+      setError("Please set your expected salary range.")
       return
     }
     if (!formData.acceptTerms) {
-      alert('Please accept the terms and conditions.')
+      setError("Please accept the terms and conditions.")
       return
     }
 
     try {
+      setSubmitting(true)
       const formDataToSend = new FormData()
       const refToSend = referralCode || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ref") : null)
 
@@ -216,7 +222,7 @@ export function CandidateRegistrationWizard() {
       const data = await response.json()
 
       if (!response.ok) {
-        alert(data.error || 'Registration failed. Please try again.')
+        setError(data.error || "Registration failed. Please try again.")
         return
       }
 
@@ -229,7 +235,9 @@ export function CandidateRegistrationWizard() {
       router.push(redirect?.startsWith('/') ? redirect : '/')
     } catch (error) {
       console.error('Registration error:', error)
-      alert('Network error. Please try again.')
+      setError("Network error. Please try again.")
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -309,6 +317,11 @@ export function CandidateRegistrationWizard() {
       {/* Step Content */}
       <Card className="mx-auto max-w-4xl border-border shadow-lg">
         <CardContent className="p-6 md:p-8">
+          {error && (
+            <div className="mb-6 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           {renderStep()}
 
           {/* Navigation Buttons */}
@@ -329,9 +342,22 @@ export function CandidateRegistrationWizard() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleSubmit} className="gap-2" disabled={!formData.acceptTerms}>
-                Submit Profile
-                <CheckCircle className="h-4 w-4" />
+              <Button
+                onClick={handleSubmit}
+                className="gap-2"
+                disabled={!formData.acceptTerms || submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    Submit Profile
+                    <CheckCircle className="h-4 w-4" />
+                  </>
+                )}
               </Button>
             )}
           </div>

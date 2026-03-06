@@ -1,8 +1,6 @@
 "use client"
 
-import React from "react"
-
-import { useState, useRef, useCallback } from "react"
+import React, { useState, useRef, useCallback, useEffect } from "react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -44,6 +42,12 @@ export function VideoProfileStep({ formData, updateFormData }: VideoProfileStepP
   const chunksRef = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
+
   const startCamera = useCallback(async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -51,9 +55,6 @@ export function VideoProfileStep({ formData, updateFormData }: VideoProfileStepP
         audio: true,
       })
       setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
       setMode("record")
     } catch (err) {
       console.error("Error accessing camera:", err)
