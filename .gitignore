@@ -30,6 +30,6 @@ next-env.d.ts
 /public/uploads/*
 !/public/uploads/.gitkeep
 
-# temp uploaded files (keep the directory via .gitkeep)
-/public/tmp/uploads/*
-/public/tmp/uploads/
+# temp uploaded files (tracked in repo)
+# /public/tmp/uploads/*
+# /public/tmp/uploads/
