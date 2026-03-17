@@ -146,9 +146,10 @@ function DemandDetailContent({ demand }: { demand: Demand }) {
 }
 
 // ─── GRID CARD ────────────────────────────────────────────────────────────────
-function GridCard({ d, onSelect, selected, detailOpen }: {
+function GridCard({ d, onSelect, onClose, selected, detailOpen }: {
   d: Demand
   onSelect: (d: Demand) => void
+  onClose: () => void
   selected: Demand | null
   detailOpen: boolean
 }) {
@@ -220,7 +221,7 @@ function GridCard({ d, onSelect, selected, detailOpen }: {
         <div className="mt-auto flex gap-2 pt-1">
           <Dialog
             open={detailOpen && selected?.id === d.id}
-            onOpenChange={(o) => { if (o) onSelect(d) }}
+            onOpenChange={(o) => { if (o) onSelect(d); else onClose(); }}
           >
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1 flex-1 h-8 text-xs">
@@ -249,9 +250,10 @@ function GridCard({ d, onSelect, selected, detailOpen }: {
 }
 
 // ─── LIST ROW ─────────────────────────────────────────────────────────────────
-function ListRow({ d, onSelect, selected, detailOpen }: {
+function ListRow({ d, onSelect, onClose, selected, detailOpen }: {
   d: Demand
   onSelect: (d: Demand) => void
+  onClose: () => void
   selected: Demand | null
   detailOpen: boolean
 }) {
@@ -299,7 +301,7 @@ function ListRow({ d, onSelect, selected, detailOpen }: {
             )}
             <Dialog
               open={detailOpen && selected?.id === d.id}
-              onOpenChange={(o) => { if (o) onSelect(d) }}
+              onOpenChange={(o) => { if (o) onSelect(d); else onClose(); }}
             >
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1 h-8 text-xs">
@@ -329,9 +331,10 @@ function ListRow({ d, onSelect, selected, detailOpen }: {
 }
 
 // ─── TABLE ROW ────────────────────────────────────────────────────────────────
-function TableView({ demands, onSelect, selected, detailOpen }: {
+function TableView({ demands, onSelect, onClose, selected, detailOpen }: {
   demands: Demand[]
   onSelect: (d: Demand) => void
+  onClose: () => void
   selected: Demand | null
   detailOpen: boolean
 }) {
@@ -400,7 +403,7 @@ function TableView({ demands, onSelect, selected, detailOpen }: {
                   <div className="flex items-center justify-end gap-1.5">
                     <Dialog
                       open={detailOpen && selected?.id === d.id}
-                      onOpenChange={(o) => { if (o) onSelect(d) }}
+                      onOpenChange={(o) => { if (o) onSelect(d); else onClose(); }}
                     >
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -462,6 +465,11 @@ export default function AgentDemandsPage() {
   const handleSelect = (d: Demand) => {
     setSelectedDemand(d)
     setDetailOpen(true)
+  }
+
+  const handleClose = () => {
+    setDetailOpen(false)
+    setSelectedDemand(null)
   }
 
   // Stats
@@ -579,6 +587,7 @@ export default function AgentDemandsPage() {
                   key={d.id}
                   d={d}
                   onSelect={handleSelect}
+                  onClose={handleClose}
                   selected={selectedDemand}
                   detailOpen={detailOpen}
                 />
@@ -594,6 +603,7 @@ export default function AgentDemandsPage() {
                   key={d.id}
                   d={d}
                   onSelect={handleSelect}
+                  onClose={handleClose}
                   selected={selectedDemand}
                   detailOpen={detailOpen}
                 />
@@ -606,6 +616,7 @@ export default function AgentDemandsPage() {
             <TableView
               demands={filtered}
               onSelect={handleSelect}
+              onClose={handleClose}
               selected={selectedDemand}
               detailOpen={detailOpen}
             />

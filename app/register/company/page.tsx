@@ -72,7 +72,7 @@ export default function CompanyRegisterPage() {
     try {
       const fd = new FormData()
       fd.append("file", formData.companyProofFile)
-      fd.append("type", "proof")
+      fd.append("type", "company-proof")
       const res = await fetch("/api/upload", { method: "POST", body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Upload failed")

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, initializeDatabase } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { apiError } from '@/lib/api-utils'
-import { uploadToCloudinary, getResourceType } from '@/lib/cloudinary'
+import { uploadToCloudinary, getResourceType, CLOUDINARY_FOLDERS } from '@/lib/cloudinary'
 
 export const runtime = 'nodejs'
 
@@ -21,7 +21,7 @@ async function saveFileToCloudinary(file: File, prefix: string): Promise<string>
   const buffer = Buffer.from(await file.arrayBuffer())
   const resourceType = getResourceType(file.type)
   return uploadToCloudinary(buffer, file.type, {
-    folder: `recruitment/candidate/${prefix}`,
+    folder: `${CLOUDINARY_FOLDERS.CANDIDATE_CV}/${prefix}`,
     resource_type: resourceType,
   })
 }

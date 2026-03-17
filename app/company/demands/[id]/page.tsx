@@ -72,13 +72,32 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
 }
 
 /* ─── main page ─────────────────────────────────────────── */
+type DemandInfo = {
+  id: string
+  jobTitle: string
+  companyName: string
+  location?: string
+  quantity?: number
+  filledPositions?: number
+  salary?: { amount: number; currency: string }
+  gender?: "male" | "female" | "any"
+  nationality?: string[]
+  joining?: "immediate" | "scheduled"
+  status?: string
+  benefits?: string[]
+  timeRemark?: string
+  otherBenefitNote?: string
+  deadline?: string
+  createdAt?: string
+}
+
 export default function CompanyDemandSubmissionsPage() {
   const params = useParams()
   const router = useRouter()
   const demandId = params?.id as string
 
   const [companyId, setCompanyId]   = useState("")
-  const [demand, setDemand]         = useState<{ jobTitle: string; companyName: string } | null>(null)
+  const [demand, setDemand]         = useState<DemandInfo | null>(null)
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading]       = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -101,7 +120,26 @@ export default function CompanyDemandSubmissionsPage() {
     ]).then(([dRes, sRes, stRes]) => {
       if (dRes.success && dRes.demands) {
         const d = dRes.demands.find((x: { id: string }) => x.id === demandId)
-        if (d) setDemand({ jobTitle: d.jobTitle, companyName: d.companyName })
+        if (d) {
+          setDemand({
+            id: d.id,
+            jobTitle: d.jobTitle,
+            companyName: d.companyName,
+            location: d.location,
+            quantity: d.positions ?? d.quantity,
+            filledPositions: d.filledPositions,
+            salary: d.salary,
+            gender: d.gender,
+            nationality: d.nationality,
+            joining: d.joining,
+            status: d.status,
+            benefits: d.benefits,
+            timeRemark: d.timeRemark,
+            otherBenefitNote: d.otherBenefitNote,
+            deadline: d.deadline,
+            createdAt: d.createdAt,
+          })
+        }
       }
       if (sRes.success && sRes.submissions) setSubmissions(sRes.submissions)
       if (stRes?.plan) setPlanInfo({
@@ -182,6 +220,84 @@ export default function CompanyDemandSubmissionsPage() {
       </header>
 
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 lg:px-8">
+
+        {/* ══ demand details preview ══ */}
+        {demand && (
+          <div className="grid gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm md:grid-cols-3">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Job</p>
+              <p className="text-sm font-semibold text-foreground">{demand.jobTitle}</p>
+              {demand.location && (
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Users className="h-3 w-3" />
+                  {demand.location}
+                </p>
+              )}
+              {typeof demand.quantity === "number" && (
+                <p className="text-xs text-muted-foreground">
+                  Positions: <span className="font-medium text-foreground">{demand.filledPositions ?? 0}/{demand.quantity}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Hiring details</p>
+              {demand.salary && (
+                <p className="text-sm text-foreground">
+                  Salary:{" "}
+                  <span className="font-semibold">
+                    {demand.salary.amount} {demand.salary.currency}
+                  </span>
+                </p>
+              )}
+              {demand.gender && (
+                <p className="text-xs text-muted-foreground">
+                  Gender: <span className="font-medium capitalize text-foreground">{demand.gender}</span>
+                </p>
+              )}
+              {demand.joining && (
+                <p className="text-xs text-muted-foreground">
+                  Joining: <span className="font-medium capitalize text-foreground">{demand.joining}</span>
+                </p>
+              )}
+              {demand.deadline && (
+                <p className="text-xs text-muted-foreground">
+                  Deadline:{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(demand.deadline).toLocaleDateString()}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Extras</p>
+              {demand.nationality && demand.nationality.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nationality:{" "}
+                  <span className="font-medium text-foreground">
+                    {demand.nationality.slice(0, 3).join(", ")}
+                    {demand.nationality.length > 3 && ` +${demand.nationality.length - 3}`}
+                  </span>
+                </p>
+              )}
+              {demand.benefits && demand.benefits.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Benefits:{" "}
+                  <span className="font-medium text-foreground">
+                    {demand.benefits.slice(0, 4).join(", ")}
+                    {demand.benefits.length > 4 && ` +${demand.benefits.length - 4}`}
+                  </span>
+                </p>
+              )}
+              {demand.timeRemark && (
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  Remark: <span className="font-medium text-foreground">{demand.timeRemark}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ══ hero stats row ══ */}
         {submissions.length > 0 && (

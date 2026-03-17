@@ -1,12 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Users } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Search, Users, Loader2, Plus, X, Upload, ChevronDown } from "lucide-react"
 import { PageLoader } from "@/components/page-loader"
+import { cn } from "@/lib/utils"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CandidateRow {
   id: string
@@ -21,121 +27,629 @@ interface CandidateRow {
   source: string
 }
 
+interface JobCategoryOption {
+  id: string
+  name: string
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const EMPTY_FORM = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  dateOfBirth: "",
+  gender: "",
+  nationality: "",
+  jobCategoryId: "",
+  currentSalary: "",
+  salaryExpectation: "",
+  currentLocation: "",
+  languages: [] as string[],
+  maritalStatus: "",
+  skills: [] as string[],
+  visaValidity: "",
+  remarks: "",
+}
+
+const STATUS_MAP: Record<string, { label: string; className: string }> = {
+  available:     { label: "Available",     className: "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" },
+  under_bidding: { label: "Under Bidding", className: "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800" },
+  interviewed:   { label: "Interviewed",   className: "bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800" },
+  selected:      { label: "Selected",      className: "bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800" },
+  on_hold:       { label: "On Hold",       className: "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800" },
+}
+
+const LANGUAGE_OPTIONS = [
+  "English", "Arabic", "French", "Spanish", "Hindi", "Urdu",
+  "Malayalam", "Tamil", "Tagalog", "Bengali", "Sinhala", "Nepali",
+]
+
+const MARITAL_OPTIONS = ["Single", "Married", "Divorced", "Widowed"]
+const GENDER_OPTIONS   = ["Male", "Female", "Prefer not to say"]
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Section header with thin rule */
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+        {children}
+      </p>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  )
+}
+
+/** Labelled field wrapper */
+function Field({
+  label,
+  required,
+  hint,
+  children,
+  className,
+}: {
+  label: string
+  required?: boolean
+  hint?: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <Label className="text-xs font-medium text-muted-foreground leading-none">
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
+      {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/** Styled native select */
+function Select({
+  value,
+  onChange,
+  required,
+  placeholder,
+  children,
+  className,
+}: {
+  value: string
+  onChange: (v: string) => void
+  required?: boolean
+  placeholder?: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        required={required}
+        className={cn(
+          "appearance-none w-full h-9 rounded-md border border-input bg-background px-3 pr-8 text-sm",
+          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0",
+          "text-foreground",
+          !value && "text-muted-foreground",
+          className,
+        )}
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+        {children}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+    </div>
+  )
+}
+
+/** Tag input – shows existing tags + text input to add new ones */
+function TagInput({
+  tags,
+  onChange,
+  suggestions = [],
+  placeholder = "Type and press Enter…",
+}: {
+  tags: string[]
+  onChange: (tags: string[]) => void
+  suggestions?: string[]
+  placeholder?: string
+}) {
+  const [input, setInput] = useState("")
+  const [open, setOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const filtered = suggestions.filter(
+    s => s.toLowerCase().includes(input.toLowerCase()) && !tags.includes(s),
+  )
+
+  function addTag(tag: string) {
+    const trimmed = tag.trim()
+    if (trimmed && !tags.includes(trimmed)) onChange([...tags, trimmed])
+    setInput("")
+    setOpen(false)
+  }
+
+  function removeTag(tag: string) {
+    onChange(tags.filter(t => t !== tag))
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") { e.preventDefault(); if (input.trim()) addTag(input) }
+    if (e.key === "Backspace" && !input && tags.length) removeTag(tags[tags.length - 1])
+    if (e.key === "Escape") setOpen(false)
+  }
+
+  // close dropdown on outside click
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onClick)
+    return () => document.removeEventListener("mousedown", onClick)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div
+        className={cn(
+          "min-h-9 w-full rounded-md border border-input bg-background px-2.5 py-1.5",
+          "flex flex-wrap gap-1.5 cursor-text",
+          "focus-within:ring-2 focus-within:ring-ring",
+        )}
+        onClick={() => inputRef.current?.focus()}
+      >
+        {tags.map(tag => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground rounded-md px-2 py-0.5 text-xs font-medium"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); removeTag(tag) }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e => { setInput(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKey}
+          placeholder={tags.length === 0 ? placeholder : ""}
+          className="flex-1 min-w-[80px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+
+      {/* Dropdown suggestions */}
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-md py-1 max-h-44 overflow-y-auto">
+          {filtered.map(s => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); addTag(s) }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Avatar circle from initials */
+function Avatar({ firstName = "", lastName = "" }: { firstName?: string; lastName?: string }) {
+  const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase()
+  return (
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold select-none">
+      {initials}
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function AgentCandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
+  const [loading, setLoading]       = useState(true)
+  const [search, setSearch]         = useState("")
+  const [addOpen, setAddOpen]       = useState(false)
+  const [jobCategories, setJobCategories] = useState<JobCategoryOption[]>([])
+  const [creating, setCreating]     = useState(false)
+  const [agentId, setAgentId]       = useState<string>("")
+  const [form, setForm]             = useState(EMPTY_FORM)
+  const [cvFile, setCvFile]         = useState<File | null>(null)
 
+  // field setter helpers
+  const setField = (key: keyof typeof EMPTY_FORM) =>
+    (value: string | string[]) => setForm(prev => ({ ...prev, [key]: value }))
+
+  const setStr = (key: keyof typeof EMPTY_FORM) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => setField(key)(e.target.value)
+
+  // ── Data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
     const user = localStorage.getItem("user")
     if (!user) return
-    const { agentId } = JSON.parse(user)
+    const { agentId: storedAgentId } = JSON.parse(user)
+    setAgentId(storedAgentId)
 
-    fetch(`/api/agent/candidates?agentId=${agentId}`)
+    fetch(`/api/agent/candidates?agentId=${storedAgentId}`)
       .then(r => r.json())
-      .then(data => {
-        if (data.success) setCandidates(data.candidates)
-      })
+      .then(data => { if (data.success) setCandidates(data.candidates) })
       .catch(console.error)
       .finally(() => setLoading(false))
+
+    fetch("/api/admin/job-categories")
+      .then(r => r.json())
+      .then(data => {
+        if (data.categories) {
+          setJobCategories(data.categories.map((c: any) => ({ id: c.id, name: c.name })))
+        }
+      })
+      .catch(console.error)
   }, [])
 
-  const filtered = candidates.filter(c =>
-    `${c.firstName} ${c.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
-    c.skills?.some(s => s.toLowerCase().includes(search.toLowerCase()))
-  )
+  // ── Filtering ───────────────────────────────────────────────────────────────
+  const filtered = candidates.filter(c => {
+    const q = search.toLowerCase()
+    return (
+      `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q) ||
+      c.skills?.some(s => s.toLowerCase().includes(q))
+    )
+  })
 
-  const statusColors: Record<string, string> = {
-    available: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
-    under_bidding: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
-    interviewed: "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400",
-    selected: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
-    on_hold: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
+  // ── Submit ──────────────────────────────────────────────────────────────────
+  async function handleCreateCandidate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!agentId || !form.jobCategoryId || !cvFile) return
+
+    setCreating(true)
+    try {
+      const fd = new FormData()
+      const textFields: (keyof typeof EMPTY_FORM)[] = [
+        "firstName","lastName","email","phone","dateOfBirth","gender",
+        "nationality","currentLocation","maritalStatus","currentSalary",
+        "salaryExpectation","visaValidity","remarks",
+      ]
+      textFields.forEach(k => { if (form[k]) fd.append(k, form[k] as string) })
+      if (form.languages.length)  fd.append("languages", form.languages.join(", "))
+      if (form.skills.length)     fd.append("skill", form.skills.join(", "))
+      fd.append("jobCategories", JSON.stringify([form.jobCategoryId]))
+      fd.append("agentId", agentId)
+      fd.append("cvUpload", cvFile)
+
+      const res  = await fetch("/api/agency/manual-candidates", { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok || !data.success) return
+
+      setAddOpen(false)
+      setForm(EMPTY_FORM)
+      setCvFile(null)
+
+      fetch(`/api/agent/candidates?agentId=${agentId}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setCandidates(d.candidates) })
+        .catch(console.error)
+    } finally {
+      setCreating(false)
+    }
   }
 
-  if (loading) {
-    return <PageLoader />
-  }
+  // ── Render ──────────────────────────────────────────────────────────────────
+  if (loading) return <PageLoader />
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Candidates ({candidates.length})</h1>
-        <p className="text-sm text-muted-foreground">Candidates recruited through your referral link</p>
+    <div className="space-y-5">
+
+      {/* Page header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            My Candidates{" "}
+            <span className="font-normal text-muted-foreground text-lg">({candidates.length})</span>
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Candidates you have uploaded or recruited
+          </p>
+        </div>
+        <Button onClick={() => setAddOpen(true)} className="gap-2 h-9">
+          <Plus className="h-4 w-4" />
+          Add Candidate
+        </Button>
       </div>
 
       {/* Search */}
-      <Card>
-        <CardContent className="pt-6">
+      <Card className="shadow-none">
+        <CardContent className="py-4 px-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search by name, email, or skills..."
+              placeholder="Search by name, email, or skills…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 h-9"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card className="shadow-none overflow-hidden">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Users className="mb-4 h-12 w-12 text-muted-foreground" />
-              <p className="text-lg font-medium text-muted-foreground">No candidates found</p>
-              <p className="text-sm text-muted-foreground">Share your referral link to start recruiting</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+              <Users className="h-10 w-10 opacity-25" />
+              <p className="text-sm font-medium">No candidates found</p>
+              <p className="text-xs opacity-60">
+                {search ? "Try a different search term" : "Share your referral link to start recruiting"}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Skills</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Registered</TableHead>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    {["Name","Email","Phone","Location","Skills","Status","Registered"].map(h => (
+                      <TableHead
+                        key={h}
+                        className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground h-9"
+                      >
+                        {h}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map(c => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.firstName} {c.lastName}</TableCell>
-                      <TableCell className="text-muted-foreground">{c.email}</TableCell>
-                      <TableCell>{c.phone || "-"}</TableCell>
-                      <TableCell>{c.currentLocation || "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {c.skills?.slice(0, 2).map(s => (
-                            <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                          ))}
-                          {(c.skills?.length || 0) > 2 && (
-                            <Badge variant="secondary" className="text-xs">+{c.skills.length - 2}</Badge>
+                  {filtered.map(c => {
+                    const status = STATUS_MAP[c.status]
+                    return (
+                      <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar firstName={c.firstName} lastName={c.lastName} />
+                            <span className="font-medium text-sm leading-tight">
+                              {c.firstName} {c.lastName}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground py-3">{c.email}</TableCell>
+                        <TableCell className="text-sm py-3">{c.phone || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground py-3">{c.currentLocation || "—"}</TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {c.skills?.slice(0, 2).map(s => (
+                              <Badge key={s} variant="secondary" className="text-xs px-2 py-0 font-normal">{s}</Badge>
+                            ))}
+                            {(c.skills?.length ?? 0) > 2 && (
+                              <Badge variant="secondary" className="text-xs px-2 py-0 font-normal">
+                                +{c.skills.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          {status ? (
+                            <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", status.className)}>
+                              {status.label}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {c.status?.replace(/_/g, " ") || "—"}
+                            </span>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[c.status] || ""}`}>
-                          {c.status?.replace("_", " ")}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(c.createdAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground py-3">
+                          {new Date(c.createdAt).toLocaleDateString("en-GB", {
+                            day: "numeric", month: "short", year: "numeric",
+                          })}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Add Candidate Modal */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0">
+
+          {/* Sticky modal header */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold">Add Candidate</DialogTitle>
+              <DialogDescription className="text-xs">
+                Fill in the candidate details and upload their CV to create a profile.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <form onSubmit={handleCreateCandidate} className="px-6 py-5 space-y-7">
+
+            {/* ── Personal details ─────────────────────────────────── */}
+            <section>
+              <SectionHeading>Personal details</SectionHeading>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <Field label="First name" required>
+                  <Input value={form.firstName} onChange={setStr("firstName")} placeholder="e.g. James" required />
+                </Field>
+                <Field label="Last name" required>
+                  <Input value={form.lastName} onChange={setStr("lastName")} placeholder="e.g. Adeyemi" required />
+                </Field>
+                <Field label="Date of birth">
+                  <Input type="date" value={form.dateOfBirth} onChange={setStr("dateOfBirth")} />
+                </Field>
+                <Field label="Gender">
+                  <Select
+                    value={form.gender}
+                    onChange={setField("gender")}
+                    placeholder="Select gender"
+                  >
+                    {GENDER_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Nationality">
+                  <Input value={form.nationality} onChange={setStr("nationality")} placeholder="e.g. Indian" />
+                </Field>
+                <Field label="Marital status">
+                  <Select
+                    value={form.maritalStatus}
+                    onChange={setField("maritalStatus")}
+                    placeholder="Select status"
+                  >
+                    {MARITAL_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                </Field>
+              </div>
+            </section>
+
+            {/* ── Contact ──────────────────────────────────────────── */}
+            <section>
+              <SectionHeading>Contact</SectionHeading>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <Field label="Email" required>
+                  <Input type="email" value={form.email} onChange={setStr("email")} placeholder="name@example.com" required />
+                </Field>
+                <Field label="Phone" required>
+                  <Input value={form.phone} onChange={setStr("phone")} placeholder="+44 7700 000000" required />
+                </Field>
+                <Field label="Current location" className="col-span-2">
+                  <Input value={form.currentLocation} onChange={setStr("currentLocation")} placeholder="City, Country" />
+                </Field>
+              </div>
+            </section>
+
+            {/* ── Role & compensation ───────────────────────────────── */}
+            <section>
+              <SectionHeading>Role & compensation</SectionHeading>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <Field label="Job category" required className="col-span-2">
+                  <Select
+                    value={form.jobCategoryId}
+                    onChange={setField("jobCategoryId")}
+                    placeholder="Select a category"
+                    required
+                  >
+                    {jobCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Current salary">
+                  <Input value={form.currentSalary} onChange={setStr("currentSalary")} placeholder="e.g. 60,000" />
+                </Field>
+                <Field label="Salary expectation">
+                  <Input value={form.salaryExpectation} onChange={setStr("salaryExpectation")} placeholder="e.g. 75,000" />
+                </Field>
+                <Field label="Visa validity" className="col-span-2">
+                  <Input value={form.visaValidity} onChange={setStr("visaValidity")} placeholder="e.g. Dec 2027 or N/A" />
+                </Field>
+              </div>
+            </section>
+
+            {/* ── Skills & languages ────────────────────────────────── */}
+            <section>
+              <SectionHeading>Skills & languages</SectionHeading>
+              <div className="grid gap-y-4">
+                <Field
+                  label="Skills"
+                  hint="Type a skill and press Enter, or pick from suggestions"
+                >
+                  <TagInput
+                    tags={form.skills}
+                    onChange={setField("skills")}
+                    suggestions={[
+                      "React","Node.js","Python","TypeScript","AWS","DevOps","Docker",
+                      "Machine Learning","SQL","MongoDB","Java","PHP","Flutter","iOS","Android",
+                      "Project Management","Sales","Marketing","Finance","HR","Logistics",
+                    ]}
+                    placeholder="e.g. React, Node.js…"
+                  />
+                </Field>
+                <Field
+                  label="Languages"
+                  hint="Select spoken languages"
+                >
+                  <TagInput
+                    tags={form.languages}
+                    onChange={setField("languages")}
+                    suggestions={LANGUAGE_OPTIONS}
+                    placeholder="e.g. English, Arabic…"
+                  />
+                </Field>
+              </div>
+            </section>
+
+            {/* ── Documents & notes ─────────────────────────────────── */}
+            <section>
+              <SectionHeading>Documents & notes</SectionHeading>
+              <div className="grid gap-y-4">
+                <Field label="CV upload" required hint="PDF, DOC or DOCX · max 10 MB">
+                  <label
+                    className={cn(
+                      "flex items-center gap-3 h-10 w-full rounded-md border border-dashed border-input",
+                      "bg-muted/40 hover:bg-muted/70 px-3 cursor-pointer transition-colors",
+                      "text-sm text-muted-foreground",
+                    )}
+                  >
+                    <Upload className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">
+                      {cvFile ? cvFile.name : "Click to upload CV…"}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      required
+                      className="sr-only"
+                      onChange={e => setCvFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </Field>
+                <Field label="Remarks">
+                  <Input value={form.remarks} onChange={setStr("remarks")} placeholder="Any additional notes…" />
+                </Field>
+              </div>
+            </section>
+
+            {/* Footer actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9"
+                disabled={creating}
+                onClick={() => setAddOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creating} className="h-9 min-w-[150px] gap-2">
+                {creating ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+                ) : (
+                  <><Upload className="h-4 w-4" /> Create Candidate</>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

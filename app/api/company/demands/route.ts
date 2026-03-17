@@ -24,6 +24,10 @@ export async function POST(request: NextRequest) {
       companyId,
       companyName,
       roles,
+      createdByUserId,
+      createdByEmployeeName,
+      timeRemark,
+      otherBenefitNote,
       description = '',
       location = '',
       requirements = [],
@@ -43,6 +47,10 @@ export async function POST(request: NextRequest) {
       companyId: string
       companyName: string
       roles: Array<{ jobTitle: string; quantity: number }>
+      createdByUserId?: string
+      createdByEmployeeName?: string
+      timeRemark?: string
+      otherBenefitNote?: string
       description?: string
       location?: string
       requirements?: string[]
@@ -81,6 +89,10 @@ export async function POST(request: NextRequest) {
       const demand = await db.demands.create({
         companyId,
         companyName: name,
+        createdByUserId,
+        createdByEmployeeName,
+        timeRemark,
+        otherBenefitNote,
         jobTitle: role.jobTitle.trim(),
         description,
         // Hiring details

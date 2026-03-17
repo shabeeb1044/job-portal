@@ -43,6 +43,7 @@ interface RecentDemand {
   status: string
   createdAt: string
   submissionCount: number
+  createdByEmployeeName?: string
 }
 
 interface RecentSubmission {
@@ -313,6 +314,12 @@ export default function CompanyDashboard() {
                               <span className="flex items-center gap-1">
                                 <Users className="h-3 w-3" />{d.submissionCount} submitted
                               </span>
+                              {d.createdByEmployeeName && (
+                                <span className="flex items-center gap-1">
+                                  <UserCheck className="h-3 w-3" />
+                                  {d.createdByEmployeeName}
+                                </span>
+                              )}
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />{d.filledPositions}/{total} filled
                               </span>

@@ -1,32 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadToCloudinary, getResourceType } from '@/lib/cloudinary'
+import { uploadToCloudinary, getResourceType, CLOUDINARY_FOLDERS } from '@/lib/cloudinary'
 
 export const runtime = 'nodejs'
 
-const ALLOWED_TYPES: Record<string, { mimes: string[]; maxSize: number }> = {
+const proofMimes = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
+const imageMimes = ['image/jpeg', 'image/png', 'image/webp']
+
+const ALLOWED_TYPES: Record<string, { mimes: string[]; maxSize: number; folder: string }> = {
+  // candidate-cv
   cv: {
     mimes: ['application/pdf'],
     maxSize: 5 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.CANDIDATE_CV,
   },
   video: {
     mimes: ['video/webm', 'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'],
     maxSize: 50 * 1024 * 1024,
-  },
-  photo: {
-    mimes: ['image/jpeg', 'image/png', 'image/webp'],
-    maxSize: 2 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.CANDIDATE_CV,
   },
   passport: {
     mimes: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'],
     maxSize: 5 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.CANDIDATE_CV,
+  },
+  // agency
+  'agency-logo': {
+    mimes: imageMimes,
+    maxSize: 2 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.AGENCY,
+  },
+  'agency-proof': {
+    mimes: proofMimes,
+    maxSize: 10 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.AGENCY,
+  },
+  // agent
+  'agent-photo': {
+    mimes: imageMimes,
+    maxSize: 2 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.AGENT,
+  },
+  'agent-proof': {
+    mimes: proofMimes,
+    maxSize: 10 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.AGENT,
+  },
+  // company-proof
+  'company-proof': {
+    mimes: proofMimes,
+    maxSize: 10 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.COMPANY_PROOF,
+  },
+  // legacy (keep for backward compat)
+  photo: {
+    mimes: imageMimes,
+    maxSize: 2 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.AGENT,
   },
   proof: {
-    mimes: [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ],
+    mimes: proofMimes,
     maxSize: 10 * 1024 * 1024,
+    folder: CLOUDINARY_FOLDERS.AGENCY,
   },
 }
 
@@ -42,7 +80,10 @@ export async function POST(request: NextRequest) {
 
     if (!fileType || !ALLOWED_TYPES[fileType]) {
       return NextResponse.json(
-        { error: 'Invalid file type. Must be one of: cv, video, photo, passport, proof' },
+        {
+          error:
+            'Invalid file type. Use: cv, video, passport, agency-logo, agency-proof, agent-photo, company-proof',
+        },
         { status: 400 }
       )
     }
@@ -67,7 +108,7 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const resourceType = getResourceType(file.type)
-    const folder = `recruitment/${fileType}`
+    const { folder } = ALLOWED_TYPES[fileType]
 
     const url = await uploadToCloudinary(buffer, file.type, {
       folder,

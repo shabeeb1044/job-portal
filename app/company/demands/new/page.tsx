@@ -8,37 +8,26 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Loader2, Check, Briefcase, Utensils, Home, Car, FileCheck, HeartPulse, MoreHorizontal, User, Users, Globe, Clock, CalendarClock, Calendar } from "lucide-react"
+import { ArrowLeft, Loader2, Check, Briefcase, Utensils, Home, Car, FileCheck, HeartPulse, MoreHorizontal, User, Users, Globe, Clock, CalendarClock, Calendar, X, Shield, CalendarDays } from "lucide-react"
+import { ALL_COUNTRIES } from "@/lib/countries"
+import { BenefitType, NationalityType, BENEFITS } from "@/lib/job-config"
 import { toast } from "sonner"
-
-type BenefitType = "food" | "accommodation" | "transportation" | "visa" | "medical_insurance" | "other"
-type NationalityType = "india" | "nepal" | "indonesia" | "sri_lanka" | "any"
 type RoleRow = { jobTitle: string; quantity: string }
 
-const benefitConfig: { value: BenefitType; label: string; icon: React.ReactNode }[] = [
-  { value: "food", label: "Food", icon: <Utensils className="h-4 w-4" /> },
-  { value: "accommodation", label: "Stay", icon: <Home className="h-4 w-4" /> },
-  { value: "transportation", label: "Transport", icon: <Car className="h-4 w-4" /> },
-  { value: "visa", label: "Visa", icon: <FileCheck className="h-4 w-4" /> },
-  { value: "medical_insurance", label: "Medical", icon: <HeartPulse className="h-4 w-4" /> },
-  { value: "other", label: "Other", icon: <MoreHorizontal className="h-4 w-4" /> },
-]
-
-const nationalityFlags: Record<NationalityType, string> = {
-  india: "🇮🇳",
-  nepal: "🇳🇵",
-  indonesia: "🇮🇩",
-  sri_lanka: "🇱🇰",
-  any: "🌍",
+const benefitIconMap: Record<BenefitType, React.ReactNode> = {
+  food: <Utensils className="h-4 w-4" />,
+  accommodation: <Home className="h-4 w-4" />,
+  transportation: <Car className="h-4 w-4" />,
+  visa: <FileCheck className="h-4 w-4" />,
+  medical_insurance: <HeartPulse className="h-4 w-4" />,
+  overtime: <Clock className="h-4 w-4" />,
+  insurance: <Shield className="h-4 w-4" />,
+  annual_leave_30_days: <CalendarDays className="h-4 w-4" />,
+  other: <MoreHorizontal className="h-4 w-4" />,
 }
 
-const nationalityLabels: Record<NationalityType, string> = {
-  india: "India",
-  nepal: "Nepal",
-  indonesia: "Indonesia",
-  sri_lanka: "Sri Lanka",
-  any: "Any",
-}
+const benefitConfig: { value: BenefitType; label: string; icon: React.ReactNode }[] =
+  BENEFITS.map((b) => ({ ...b, icon: benefitIconMap[b.value] }))
 
 function SelectChip({
   active,
@@ -85,17 +74,18 @@ function SegmentedControl<T extends string>({
   renderOption?: (v: T) => React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-border bg-muted/40 p-1">
+    <div className="flex items-center gap-1 rounded-xl bg-[#F3F4F6] p-1 ring-1 ring-[#E5E7EB] shadow-sm">
       {options.map((opt) => (
         <button
           key={opt}
           type="button"
           onClick={() => onChange(opt)}
           className={[
-            "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 focus:outline-none",
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium",
+            "transition-colors duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#2563EB]",
             value === opt
-              ? "bg-background text-foreground shadow-sm ring-1 ring-border"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-[#2563EB] text-white shadow-sm ring-1 ring-[#1D4ED8]"
+              : "bg-transparent text-slate-700 hover:bg-white hover:text-slate-900",
           ].join(" ")}
         >
           {renderOption ? renderOption(opt) : opt}
@@ -108,47 +98,69 @@ function SegmentedControl<T extends string>({
 export default function CreateDemandPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState("")
   const [companyId, setCompanyId] = useState("")
   const [companyName, setCompanyName] = useState("")
+  const [employeeName, setEmployeeName] = useState("")
   const [roles, setRoles] = useState<RoleRow[]>([{ jobTitle: "", quantity: "1" }])
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
   const [requirements, setRequirements] = useState("")
-  const [skills, setSkills] = useState("")
+  const [skills, setSkills] = useState<string[]>([])
+  const [skillInput, setSkillInput] = useState("")
   const [salaryAmount, setSalaryAmount] = useState("")
   const [currency, setCurrency] = useState("AED")
   const [dutyHoursPerDay, setDutyHoursPerDay] = useState("")
   const [breakTimeHours, setBreakTimeHours] = useState("")
   const [dayOffPerMonth, setDayOffPerMonth] = useState("")
+  const [timeRemark, setTimeRemark] = useState("")
   const [benefits, setBenefits] = useState<BenefitType[]>([])
+  const [otherBenefitNote, setOtherBenefitNote] = useState("")
   const [gender, setGender] = useState<"male" | "female" | "any">("any")
-  const [nationality, setNationality] = useState<NationalityType[]>(["any"])
+  const [nationality, setNationality] = useState<NationalityType[]>([])
+  const [nationalitySearch, setNationalitySearch] = useState("")
   const [joining, setJoining] = useState<"immediate" | "scheduled">("immediate")
   const [status, setStatus] = useState<"open" | "closed" | "on_hold">("open")
   const [deadline, setDeadline] = useState("")
+  const [demandLetter, setDemandLetter] = useState<"have" | "arrange" | "">("")
 
   useEffect(() => {
     const user = localStorage.getItem("user")
     if (!user) { router.push("/login/company"); return }
     const u = JSON.parse(user)
+    setUserId(u.id ?? "")
     setCompanyId(u.companyId ?? u.id ?? "")
-    setCompanyName(u.name ?? u.companyName ?? "")
+    const derivedCompanyName = u.name ?? u.companyName ?? ""
+    setCompanyName(derivedCompanyName)
+    // Default employee name for display / tracking (company contact / user name)
+    setEmployeeName(u.contactName ?? u.name ?? "")
   }, [router])
 
   const updateRole = (index: number, field: keyof RoleRow, value: string) => {
     setRoles((r) => r.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
   }
 
+  const commitSkill = () => {
+    const trimmed = skillInput.trim()
+    if (!trimmed) return
+    setSkills((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
+    setSkillInput("")
+  }
+
+  const removeSkill = (skill: string) => {
+    setSkills((prev) => prev.filter((s) => s !== skill))
+  }
+
   const toggleBenefit = (value: BenefitType) => {
     setBenefits((prev) => prev.includes(value) ? prev.filter((b) => b !== value) : [...prev, value])
   }
 
-  const toggleNationality = (value: NationalityType) => {
-    setNationality((prev) => {
-      if (value === "any") return ["any"]
-      const withoutAny = prev.filter((n) => n !== "any")
-      return withoutAny.includes(value) ? withoutAny.filter((n) => n !== value) : [...withoutAny, value]
-    })
+  const addNationality = (country: NationalityType) => {
+    setNationality((prev) => (prev.includes(country) ? prev : [...prev, country]))
+  }
+
+  const removeNationality = (country: NationalityType) => {
+    setNationality((prev) => prev.filter((n) => n !== country))
   }
 
   const handleSubmit = async () => {
@@ -161,17 +173,23 @@ export default function CreateDemandPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId, companyName: companyName || "Company",
+          companyId,
+          companyName: companyName || "Company",
+          createdByUserId: userId || undefined,
+          createdByEmployeeName: employeeName || undefined,
+          timeRemark: timeRemark || undefined,
+          otherBenefitNote: benefits.includes("other") ? (otherBenefitNote || undefined) : undefined,
           roles: valid.map((r) => ({ jobTitle: r.jobTitle.trim(), quantity: Math.max(1, Number(r.quantity)) })),
           description, location,
           requirements: requirements.split("\n").map((r) => r.trim()).filter(Boolean),
-          skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+          skills,
           salaryAmount: Number(salaryAmount || 0), currency,
           dutyHoursPerDay: Number(dutyHoursPerDay || 0),
           breakTimeHours: Number(breakTimeHours || 0),
           dayOffPerMonth: Number(dayOffPerMonth || 0),
           benefits, gender, nationality, joining, status,
           deadline: deadline || undefined,
+          demandLetter: demandLetter || undefined,
         }),
       })
       const data = await res.json()
@@ -223,6 +241,18 @@ export default function CreateDemandPage() {
 
             {/* ── Roles ── */}
             <section className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="employeeName">
+                  Employee (internal note)
+                </Label>
+                <Input
+                  id="employeeName"
+                  placeholder="e.g. Name of staff creating this demand"
+                  value={employeeName}
+                  onChange={(e) => setEmployeeName(e.target.value)}
+                />
+              </div>
+
               <Label>Role (Job title &amp; quantity)</Label>
               {roles.map((row, index) => (
                 <div key={index} className="flex gap-2">
@@ -256,9 +286,51 @@ export default function CreateDemandPage() {
                   value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="skills">Skills <span className="text-muted-foreground font-normal">(comma separated)</span></Label>
-                <Input id="skills" placeholder="e.g. customer service, sales, cleaning"
-                  value={skills} onChange={(e) => setSkills(e.target.value)} />
+                <Label htmlFor="skillInput">Skills</Label>
+                <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {skills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                      >
+                        {skill}
+                        <button
+                          type="button"
+                          onClick={() => removeSkill(skill)}
+                          className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-primary/20"
+                          aria-label={`Remove ${skill}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {skills.length === 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        No skills added yet.
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    id="skillInput"
+                    placeholder="Type a skill and press Enter"
+                    value={skillInput}
+                    onChange={(e) => setSkillInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault()
+                        commitSkill()
+                      } else if (e.key === "Backspace" && !skillInput && skills.length) {
+                        // quick remove last skill when input is empty
+                        removeSkill(skills[skills.length - 1])
+                      }
+                    }}
+                    className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Example: customer service, sales, cleaning
+                </p>
               </div>
             </section>
 
@@ -295,6 +367,42 @@ export default function CreateDemandPage() {
               </div>
             </section>
 
+            {/* ── Demand letter ── */}
+            <section className="space-y-3">
+              <div className="space-y-1">
+                <Label>Demand letter</Label>
+                <p className="text-xs text-muted-foreground">
+                  Do you provide the demand letter for this requirement?
+                </p>
+              </div>
+              <div className="flex gap-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setDemandLetter("have")}
+                  className={[
+                    "flex-1 rounded-lg border px-3 py-1.5 font-medium",
+                    demandLetter === "have"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
+                  ].join(" ")}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDemandLetter("arrange")}
+                  className={[
+                    "flex-1 rounded-lg border px-3 py-1.5 font-medium",
+                    demandLetter === "arrange"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
+                  ].join(" ")}
+                >
+                  No
+                </button>
+              </div>
+            </section>
+
             {/* ── Benefits ── */}
             <section className="space-y-3">
               <div>
@@ -309,6 +417,20 @@ export default function CreateDemandPage() {
                   </SelectChip>
                 ))}
               </div>
+              {benefits.includes("other") && (
+                <div className="space-y-1 pt-1">
+                  <Label htmlFor="otherBenefitNote" className="text-xs">
+                    Other benefit details
+                  </Label>
+                  <Textarea
+                    id="otherBenefitNote"
+                    rows={2}
+                    placeholder="Describe the other benefits you provide."
+                    value={otherBenefitNote}
+                    onChange={(e) => setOtherBenefitNote(e.target.value)}
+                  />
+                </div>
+              )}
             </section>
 
             {/* ── Gender ── */}
@@ -329,20 +451,68 @@ export default function CreateDemandPage() {
               />
             </section>
 
-            {/* ── Nationality ── */}
+            {/* ── Nationality (multi-select) ── */}
             <section className="space-y-3">
               <div>
                 <Label>Nationality</Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">Select one or more</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Search and select one or more countries.
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {(["any", "india", "nepal", "indonesia", "sri_lanka"] as NationalityType[]).map((n) => (
-                  <SelectChip key={n} active={nationality.includes(n)} onClick={() => toggleNationality(n)}>
-                    <span className="text-base leading-none">{nationalityFlags[n]}</span>
-                    {nationalityLabels[n]}
-                  </SelectChip>
-                ))}
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    placeholder="Search countries…"
+                    value={nationalitySearch}
+                    onChange={(e) => setNationalitySearch(e.target.value)}
+                    className="pl-9"
+                  />
+                  <Globe className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
+                <div className="max-h-40 overflow-y-auto rounded-xl border border-border bg-muted/40 p-1 text-sm">
+                  {ALL_COUNTRIES.filter((c) =>
+                    c.toLowerCase().includes(nationalitySearch.toLowerCase())
+                  ).map((country) => {
+                    const selected = nationality.includes(country)
+                    return (
+                      <button
+                        key={country}
+                        type="button"
+                        onClick={() => (selected ? removeNationality(country) : addNationality(country))}
+                        className={[
+                          "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left",
+                          selected
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-background hover:text-foreground",
+                        ].join(" ")}
+                      >
+                        <span className="truncate">{country}</span>
+                        {selected && <Check className="ml-2 h-3.5 w-3.5" />}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
+              {nationality.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {nationality.map((country) => (
+                    <span
+                      key={country}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                    >
+                      {country}
+                      <button
+                        type="button"
+                        onClick={() => removeNationality(country)}
+                        className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-primary/20"
+                        aria-label={`Remove ${country}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* ── Joining & Status & Deadline ── */}
@@ -363,15 +533,30 @@ export default function CreateDemandPage() {
                     )}
                   />
                 </div>
-                {/* Deadline */}
+                {/* Deadline - only relevant when joining is scheduled */}
                 <div className="space-y-2">
-                  <Label htmlFor="deadline">Deadline</Label>
+                  <Label
+                    htmlFor="deadline"
+                    className={joining === "immediate" ? "text-muted-foreground" : undefined}
+                  >
+                    Deadline
+                  </Label>
                   <div className="relative">
                     <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input id="deadline" type="date" value={deadline}
+                    <Input
+                      id="deadline"
+                      type="date"
+                      value={deadline}
                       onChange={(e) => setDeadline(e.target.value)}
-                      className="pl-9" />
+                      className="pl-9"
+                      disabled={joining === "immediate"}
+                    />
                   </div>
+                  {joining === "immediate" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Deadline is not required when joining is immediate.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -407,6 +592,18 @@ export default function CreateDemandPage() {
                   ))}
                 </div>
               </div>
+            </section>
+
+            {/* ── Remark (last) ── */}
+            <section className="space-y-2">
+              <Label htmlFor="timeRemark">Remark</Label>
+              <Textarea
+                id="timeRemark"
+                placeholder="Any extra notes about this demand (timing, conditions, special instructions, etc.)"
+                value={timeRemark}
+                onChange={(e) => setTimeRemark(e.target.value)}
+                rows={2}
+              />
             </section>
 
             {/* ── Actions ── */}

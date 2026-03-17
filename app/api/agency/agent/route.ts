@@ -5,7 +5,7 @@ import { hashPassword } from '@/lib/auth'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { agencyId, name, email, password, phone, commissionPercent } = body
+    const { agencyId, name, email, password, phone, commissionPercent, idProofUrl } = body
 
     if (!agencyId || !name || !email || !password) {
       return NextResponse.json({ error: 'agencyId, name, email, and password are required' }, { status: 400 })
@@ -30,6 +30,10 @@ export async function POST(request: NextRequest) {
       totalReferrals: 0,
       totalPlacements: 0,
       totalEarnings: 0,
+      ...(idProofUrl && {
+        idProofUrl,
+        idProofSubmittedAt: new Date().toISOString(),
+      }),
     })
 
     const { password: _, ...agentWithoutPassword } = agent

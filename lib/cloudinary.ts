@@ -12,6 +12,21 @@ if (cloudName) {
   })
 }
 
+/**
+ * Cloudinary folder structure (all uploads go under these folders only):
+ *
+ * - candidate-cv   — candidate CVs, videos, passports (agency bulk, candidate profile, registration)
+ * - agency         — agency logos, agency proof documents
+ * - agent          — agent profile photos
+ * - company-proof  — company proof documents
+ */
+export const CLOUDINARY_FOLDERS = {
+  CANDIDATE_CV: 'candidate-cv',
+  AGENCY: 'agency',
+  AGENT: 'agent',
+  COMPANY_PROOF: 'company-proof',
+} as const
+
 export type CloudinaryResourceType = 'image' | 'video' | 'raw' | 'auto'
 
 export interface UploadToCloudinaryOptions {
@@ -35,7 +50,7 @@ export async function uploadToCloudinary(
     )
   }
 
-  const { folder = 'recruitment', resource_type = 'auto', public_id } = options
+  const { folder = CLOUDINARY_FOLDERS.CANDIDATE_CV, resource_type = 'auto', public_id } = options
 
   const uploadOptions: Record<string, unknown> = {
     folder,

@@ -107,6 +107,7 @@ export async function GET(request: NextRequest) {
         filledPositions: d.filledPositions,
         status: d.status,
         createdAt: d.createdAt,
+        createdByEmployeeName: d.createdByEmployeeName,
         submissionCount: applications.filter((a) => a.demandId === d.id).length,
       })),
       recentSubmissions: submissionsWithCandidate,

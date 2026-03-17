@@ -3,27 +3,27 @@ import { db, initializeDatabase } from '@/lib/db'
 import { getDatabase } from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 import crypto from 'crypto'
-import { extractTextFromBuffer, parseCandidateFromText } from '@/lib/cv-parser'
 import { apiError } from '@/lib/api-utils'
-import { uploadToCloudinary, getResourceType } from '@/lib/cloudinary'
+import { uploadToCloudinary, getResourceType, CLOUDINARY_FOLDERS } from '@/lib/cloudinary'
 
 // Allow larger multipart body for bulk CV uploads (e.g. many PDFs)
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
-const ALLOWED_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]
 
 function sha256(buffer: Buffer): string {
   return crypto.createHash('sha256').update(buffer).digest('hex')
 }
 
+/** Derive a display name from filename (e.g. "John_Doe_Resume.pdf" -> "John Doe Resume") */
+function nameFromFilename(filename: string): string {
+  const base = filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim()
+  return base || 'Unknown'
+}
+
 export async function POST(request: NextRequest) {
-  try {
+  try { 
     await initializeDatabase()
 
     const formData = await request.formData()
@@ -77,49 +77,34 @@ export async function POST(request: NextRequest) {
             return { filename, status: 'duplicate', message: 'Duplicate (hash)' }
           }
 
-          // 🔹 parse CV
-          const text = await extractTextFromBuffer(buffer, file.type)
-          const parsed = parseCandidateFromText(text, filename)
-
-          // 🔹 duplicate by contact
-          if (parsed.email || parsed.phone) {
-            const orConditions: { email?: string; phone?: string }[] = []
-            if (parsed.email) {
-              orConditions.push({ email: parsed.email })
-            }
-            if (parsed.phone) {
-              orConditions.push({ phone: parsed.phone })
-            }
-
-            const exists = await dbInstance.collection('candidates').findOne(
-              {
-                $or: orConditions,
-              },
-              { projection: { _id: 1 } }
-            )
-
-            if (exists) {
-              return {
-                filename,
-                status: 'duplicate',
-                message: 'Duplicate (email/phone)',
-              }
-            }
-          }
-
-          // 🔹 upload CV to Cloudinary
+          // 🔹 upload CV to Cloudinary (candidate-cv folder)
           const cvUrl = await uploadToCloudinary(buffer, file.type, {
-            folder: 'recruitment/agency-bulk/cv',
+            folder: CLOUDINARY_FOLDERS.CANDIDATE_CV,
             resource_type: getResourceType(file.type),
           })
 
+          const displayName = nameFromFilename(filename)
+          const nameParts = displayName.split(/\s+/)
+          const firstName = nameParts[0] ?? 'Unknown'
+          const lastName = nameParts.slice(1).join(' ') ?? ''
+
+          // Use unique placeholder for email to avoid MongoDB E11000 duplicate key (email index)
+          const emailForDb = `no-email-${hash}`
+
           const candidate = await db.candidates.create({
-            firstName: parsed.name || 'Unknown',
-            lastName: '',
-            email: parsed.email || '',
-            phone: parsed.phone || '',
-            skills: parsed.skills || [],
-            totalExperience: parsed.experience || '',
+            firstName,
+            lastName,
+            email: emailForDb,
+            phone: '',
+            skills: [],
+            totalExperience: '',
+            currentLocation: '',
+            currentJobTitle: undefined,
+            currentCompany: undefined,
+            highestEducation: '',
+            fieldOfStudy: '',
+            languages: [],
+            certifications: [],
             status: 'available',
             role: 'candidate',
             agencyId,

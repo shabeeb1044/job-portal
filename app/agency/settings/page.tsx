@@ -147,7 +147,7 @@ export default function SettingsPage() {
     try {
       const fd = new FormData()
       fd.append("file", file)
-      fd.append("type", "photo")
+      fd.append("type", "agency-logo")
 
       const uploadRes = await fetch("/api/upload", { method: "POST", body: fd })
       const uploadData = await uploadRes.json()

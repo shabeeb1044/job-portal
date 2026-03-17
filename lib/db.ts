@@ -1,6 +1,7 @@
 // MongoDB database implementation
 import { getDatabase } from './mongodb'
 import { ObjectId } from 'mongodb'
+import type { BenefitType, NationalityType } from './job-config'
 
 export type UserRole = 'super_admin' | 'admin' | 'agency' | 'agent' | 'company' | 'corporate' | 'candidate'
 
@@ -224,6 +225,9 @@ export interface Agent {
   password: string
   phone: string
   photoUrl?: string
+  // Agent identity proof document (optional)
+  idProofUrl?: string
+  idProofSubmittedAt?: string
   commissionPercent: number
   referralCode: string
   isActive: boolean
@@ -233,21 +237,6 @@ export interface Agent {
   createdAt: string
   updatedAt: string
 }
-
-export type BenefitType =
-  | 'food'
-  | 'accommodation'
-  | 'transportation'
-  | 'visa'
-  | 'medical_insurance'
-  | 'other'
-
-export type NationalityType =
-  | 'india'
-  | 'nepal'
-  | 'indonesia'
-  | 'sri_lanka'
-  | 'any'
 
 export interface Demand {
   id: string
@@ -269,6 +258,10 @@ export interface Demand {
   dutyHoursPerDay: number
   breakTimeHours: number
   dayOffPerMonth: number
+  // Free-form note about working time / shift
+  timeRemark?: string
+  // Extra description when "other" benefit is selected
+  otherBenefitNote?: string
   // Benefits & eligibility
   benefits: BenefitType[]
   gender: 'male' | 'female' | 'any'
@@ -277,6 +270,9 @@ export interface Demand {
   location: string
   joining: 'immediate' | 'scheduled'
   status: 'open' | 'closed' | 'on_hold'
+  // Creator (company-side user / employee)
+  createdByUserId?: string
+  createdByEmployeeName?: string
   // Dates
   deadline: string
   createdAt: string

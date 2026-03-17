@@ -33,6 +33,7 @@ import {
   Globe,
   LayoutDashboard,
   User,
+  MessageSquare,
 } from "lucide-react"
 import { DashboardNotificationBell } from "@/components/dashboard-notification-bell"
 
@@ -195,14 +196,20 @@ export function Header() {
                 {user.role === "candidate" ? (
                   <>
                     <DropdownMenuItem asChild>
-                      <Link href="/candidate/profile" className="flex items-center gap-2">
+                      <Link href="/candidate/dashboard" className="flex items-center gap-2">
                         <LayoutDashboard className="h-4 w-4" />
+                        Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/candidate/profile" className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
                         Profile
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/candidate/messages" className="flex items-center gap-2">
-                        <LayoutDashboard className="h-4 w-4" />
+                        <MessageSquare className="h-4 w-4" />
                         Messages
                       </Link>
                     </DropdownMenuItem>
@@ -359,11 +366,19 @@ export function Header() {
                     {user.role === "candidate" ? (
                       <>
                         <Link
-                          href="/candidate/profile"
+                          href="/candidate/dashboard"
                           onClick={() => setIsOpen(false)}
                           className="flex items-center gap-3 rounded-lg px-4 py-3 text-foreground hover:bg-accent"
                         >
                           <LayoutDashboard className="h-5 w-5" />
+                          Dashboard
+                        </Link>
+                        <Link
+                          href="/candidate/profile"
+                          onClick={() => setIsOpen(false)}
+                          className="flex items-center gap-3 rounded-lg px-4 py-3 text-foreground hover:bg-accent"
+                        >
+                          <User className="h-5 w-5" />
                           Profile
                         </Link>
                         <Link
@@ -371,7 +386,7 @@ export function Header() {
                           onClick={() => setIsOpen(false)}
                           className="flex items-center gap-3 rounded-lg px-4 py-3 text-foreground hover:bg-accent"
                         >
-                          <LayoutDashboard className="h-5 w-5" />
+                          <MessageSquare className="h-5 w-5" />
                           Messages
                         </Link>
                       </>

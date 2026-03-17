@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { UserCog, Lock, Save } from "lucide-react"
+import { UserCog, Lock, Save, FileText, Clock } from "lucide-react"
 import { PageLoader } from "@/components/page-loader"
 import { toast } from "sonner"
 
@@ -19,13 +19,17 @@ export default function AgentSettingsPage() {
     commissionPercent: 0,
     referralCode: "",
     photoUrl: "",
+    idProofUrl: "",
+    idProofSubmittedAt: "",
   })
   const [passwordForm, setPasswordForm] = useState({ new: "", confirm: "" })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [agentId, setAgentId] = useState("")
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [idProofUploading, setIdProofUploading] = useState(false)
   const photoInputRef = useRef<HTMLInputElement | null>(null)
+  const idProofInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -44,6 +48,8 @@ export default function AgentSettingsPage() {
             commissionPercent: data.agent.commissionPercent || 0,
             referralCode: data.agent.referralCode || "",
             photoUrl: data.agent.photoUrl || "",
+            idProofUrl: data.agent.idProofUrl || "",
+            idProofSubmittedAt: data.agent.idProofSubmittedAt || "",
           })
         }
       })
@@ -113,7 +119,7 @@ export default function AgentSettingsPage() {
     try {
       const fd = new FormData()
       fd.append("file", file)
-      fd.append("type", "photo")
+      fd.append("type", "agent-photo")
 
       const uploadRes = await fetch("/api/upload", { method: "POST", body: fd })
       const uploadData = await uploadRes.json()
@@ -164,6 +170,63 @@ export default function AgentSettingsPage() {
       toast.error(message)
     } finally {
       setPhotoUploading(false)
+    }
+  }
+
+  const handleIdProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !agentId) return
+
+    const validTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]
+    if (!validTypes.includes(file.type)) {
+      toast.error("Only PDF, DOC, or DOCX files are allowed")
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be under 10 MB")
+      return
+    }
+
+    setIdProofUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      fd.append("type", "agent-proof")
+
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: fd })
+      const uploadData = await uploadRes.json()
+      if (!uploadRes.ok || !uploadData.url) {
+        throw new Error(uploadData.error || "ID proof upload failed")
+      }
+
+      const saveRes = await fetch("/api/agent/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId, idProofUrl: uploadData.url }),
+      })
+      const saveData = await saveRes.json()
+      if (!saveRes.ok || !saveData.success) {
+        throw new Error(saveData.error || "Failed to save ID proof")
+      }
+
+      setProfile(p => ({
+        ...p,
+        idProofUrl: uploadData.url,
+        idProofSubmittedAt: saveData.agent?.idProofSubmittedAt || new Date().toISOString(),
+      }))
+      toast.success("ID proof uploaded")
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "ID proof upload failed"
+      toast.error(message)
+    } finally {
+      setIdProofUploading(false)
+      if (e.target) {
+        e.target.value = ""
+      }
     }
   }
 
@@ -272,6 +335,61 @@ export default function AgentSettingsPage() {
               <p className="text-xs text-muted-foreground">Your unique recruitment code</p>
             </div>
             <code className="rounded bg-muted px-2 py-1 text-sm">{profile.referralCode}</code>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  ID Proof Document
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Upload your government ID or license (PDF, DOC, DOCX, max 10MB)
+                </p>
+                {profile.idProofSubmittedAt ? (
+                  <p className="mt-1 text-xs flex items-center gap-1 text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    Submitted on{" "}
+                    {new Date(profile.idProofSubmittedAt).toLocaleString()}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Not submitted yet
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                {profile.idProofUrl && (
+                  <a
+                    href={profile.idProofUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    View current document
+                  </a>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={idProofInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={handleIdProofChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => idProofInputRef.current?.click()}
+                    disabled={idProofUploading}
+                  >
+                    {idProofUploading ? "Uploading..." : profile.idProofUrl ? "Update ID Proof" : "Upload ID Proof"}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <Button onClick={saveProfile} disabled={saving}>

@@ -19,7 +19,6 @@ import {
   Menu,
   X,
   Briefcase,
-  Upload,
   Sun,
   Moon,
 } from "lucide-react"
@@ -28,7 +27,6 @@ import { DashboardNotificationBell } from "@/components/dashboard-notification-b
 const sidebarLinks = [
   { href: "/agent/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/agent/demands", label: "Demands", icon: Briefcase },
-  { href: "/agent/bulk-upload", label: "Bulk Upload", icon: Upload },
   { href: "/agent/referrals", label: "My Referrals", icon: Link2 },
   { href: "/agent/candidates", label: "My Candidates", icon: Users },
   { href: "/agent/applications", label: "Applications", icon: FileCheck },
