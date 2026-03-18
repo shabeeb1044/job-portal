@@ -156,7 +156,7 @@ export function CandidateRegistrationWizard() {
       return
     }
     if (!formData.jobCategories || formData.jobCategories.length === 0) {
-      setError("Please select at least one job category.")
+      setError("Please select at least one job sub-category.")
       return
     }
     if (!formData.totalExperience || !formData.qualification) {
@@ -165,10 +165,6 @@ export function CandidateRegistrationWizard() {
     }
     if (!formData.cvFile) {
       setError("Please upload your CV.")
-      return
-    }
-    if (!formData.videoFile) {
-      setError("Please record or upload your video introduction.")
       return
     }
     if (!formData.salaryRange) {

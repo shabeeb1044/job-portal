@@ -61,7 +61,7 @@ export default function CompanyLoginPage() {
         return
       }
 
-      if (data.user.role !== "company" && data.user.role !== "corporate") {
+      if (data.user.role !== "company" && data.user.role !== "corporate" && data.user.role !== "staff") {
         setError("Invalid account type. Use company login for company accounts.")
         setLoading(false)
         return

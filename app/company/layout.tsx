@@ -36,6 +36,7 @@ function getPageTitle(pathname: string): string {
   if (pathname === "/company/demands/new") return "Create Demand"
   if (pathname.match(/^\/company\/demands\/[^/]+$/)) return "Submissions"
   if (pathname === "/company/candidates") return "Candidates"
+  if (pathname === "/company/users") return "Users"
   if (pathname === "/company/bidding-center") return "Bidding Center"
   if (pathname === "/company/shortlisted") return "Shortlisted"
   if (pathname === "/company/messages") return "Messages"
@@ -66,7 +67,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
     }
     try {
       const u = JSON.parse(stored)
-      if (u.role !== "company" && u.role !== "corporate") {
+      if (u.role !== "company" && u.role !== "corporate" && u.role !== "staff") {
         router.replace("/login/company")
         return
       }
@@ -150,6 +151,13 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
                 {activeDemands}
               </span>
             )}
+          </Link>
+          <Link
+            href="/company/users"
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 ${pathname === "/company/users" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+          >
+            <Users className="h-5 w-5" />
+            Users
           </Link>
           <Link
             href="/company/candidates"

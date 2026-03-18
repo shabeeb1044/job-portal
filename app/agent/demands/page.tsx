@@ -33,7 +33,7 @@ interface Demand {
   description: string
   requirements: string[]
   skills: string[]
-  salary: { min: number; max: number; currency: string }
+  salary?: { min?: number; max?: number; amount?: number; currency: string }
   gender: string
   location: string
   positions: number
@@ -43,6 +43,18 @@ interface Demand {
 }
 
 type ViewMode = "grid" | "list" | "table"
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatSalary(salary: Demand["salary"]): string {
+  if (!salary?.currency) return "—"
+  const cur = salary.currency
+  if (typeof salary.min === "number" && typeof salary.max === "number")
+    return `${cur} ${salary.min.toLocaleString()} – ${salary.max.toLocaleString()}`
+  if (typeof salary.amount === "number")
+    return `${cur} ${salary.amount.toLocaleString()}`
+  return cur
+}
 
 function FillBar({ filled, total }: { filled: number; total: number }) {
   const pct = total > 0 ? Math.round((filled / total) * 100) : 0
@@ -59,91 +71,194 @@ function FillBar({ filled, total }: { filled: number; total: number }) {
 
 function DemandDetailContent({ demand }: { demand: Demand }) {
   return (
-    <div className="space-y-5">
-      {/* Meta info */}
+    <div className="space-y-6">
+      {/* ===== STATUS BADGES ===== */}
       <div className="flex flex-wrap gap-2">
-        <Badge variant={demand.status === "open" ? "default" : "secondary"} className="capitalize">
-          {demand.status}
-        </Badge>
-        {demand.gender && <Badge variant="outline">{demand.gender}</Badge>}
+        {/* Status Badge */}
+        <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+          demand.status === "open"
+            ? "bg-gradient-to-r from-emerald-100 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300"
+            : "bg-gradient-to-r from-slate-100 to-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300"
+        }`}>
+          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+            demand.status === "open" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+          }`} />
+          {demand.status.charAt(0).toUpperCase() + demand.status.slice(1)}
+        </div>
+
+        {/* Gender Badge */}
+        {demand.gender && (
+          <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 border border-blue-200 hover:border-blue-300 transition-all">
+            <span className="inline-block w-2 h-2 rounded-full mr-2 bg-blue-500" />
+            {demand.gender}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      {/* ===== INFO CARDS GRID ===== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Location Card */}
         {demand.location && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50">
-            <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Location</p>
-              <p className="font-medium">{demand.location}</p>
+          <div className="group">
+            <div className="flex gap-3 p-4 rounded-lg border border-slate-200/60 bg-gradient-to-br from-slate-50/80 to-slate-50/40 hover:border-blue-300 hover:from-blue-50/60 hover:to-slate-50/40 transition-all">
+              {/* Icon with background */}
+              <div className="flex-shrink-0 p-2.5 bg-blue-100 rounded-lg group-hover:bg-blue-200 group-hover:scale-110 transition-all">
+                <MapPin className="h-4 w-4 text-blue-600" />
+              </div>
+              
+              {/* Content */}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Location
+                </p>
+                <p className="text-sm font-bold text-slate-900 truncate">
+                  {demand.location}
+                </p>
+              </div>
             </div>
           </div>
         )}
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50">
-          <DollarSign className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Salary</p>
-            <p className="font-medium">{demand.salary.currency} {demand.salary.min?.toLocaleString()} – {demand.salary.max?.toLocaleString()}</p>
+
+        {/* Salary Card */}
+        <div className="group">
+          <div className="flex gap-3 p-4 rounded-lg border border-slate-200/60 bg-gradient-to-br from-emerald-50/80 to-slate-50/40 hover:border-emerald-300 hover:from-emerald-50/60 hover:to-slate-50/40 transition-all">
+            {/* Icon with background */}
+            <div className="flex-shrink-0 p-2.5 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 group-hover:scale-110 transition-all">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+            </div>
+            
+            {/* Content */}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                Salary Range
+              </p>
+              <p className="text-sm font-bold text-slate-900">
+                {formatSalary(demand.salary)}
+              </p>
+            </div>
           </div>
         </div>
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50">
-          <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Positions</p>
-            <p className="font-medium">{demand.filledPositions} / {demand.positions} filled</p>
+
+        {/* Positions Card */}
+        <div className="group">
+          <div className="flex gap-3 p-4 rounded-lg border border-slate-200/60 bg-gradient-to-br from-amber-50/80 to-slate-50/40 hover:border-amber-300 hover:from-amber-50/60 hover:to-slate-50/40 transition-all">
+            {/* Icon with background */}
+            <div className="flex-shrink-0 p-2.5 bg-amber-100 rounded-lg group-hover:bg-amber-200 group-hover:scale-110 transition-all">
+              <Users className="h-4 w-4 text-amber-600" />
+            </div>
+            
+            {/* Content */}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                Positions
+              </p>
+              <p className="text-sm font-bold text-slate-900">
+                <span className="text-amber-600">{demand.filledPositions}</span> / <span className="text-slate-500">{demand.positions}</span> filled
+              </p>
+            </div>
           </div>
         </div>
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50">
-          <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Deadline</p>
-            <p className="font-medium">{demand.deadline ? new Date(demand.deadline).toLocaleDateString() : "—"}</p>
+
+        {/* Deadline Card */}
+        <div className="group">
+          <div className="flex gap-3 p-4 rounded-lg border border-slate-200/60 bg-gradient-to-br from-rose-50/80 to-slate-50/40 hover:border-rose-300 hover:from-rose-50/60 hover:to-slate-50/40 transition-all">
+            {/* Icon with background */}
+            <div className="flex-shrink-0 p-2.5 bg-rose-100 rounded-lg group-hover:bg-rose-200 group-hover:scale-110 transition-all">
+              <Calendar className="h-4 w-4 text-rose-600" />
+            </div>
+            
+            {/* Content */}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                Deadline
+              </p>
+              <p className="text-sm font-bold text-slate-900">
+                {demand.deadline 
+                  ? new Date(demand.deadline).toLocaleDateString("en-GB", { 
+                      day: "numeric", 
+                      month: "short", 
+                      year: "numeric" 
+                    })
+                  : "—"
+                }
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* ===== DESCRIPTION SECTION ===== */}
       {demand.description && (
-        <div>
-          <h4 className="text-sm font-semibold mb-2">Description</h4>
-          <p className="text-sm text-muted-foreground leading-relaxed">{demand.description}</p>
+        <div className="space-y-2">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+            <span className="inline-block w-1 h-1 rounded-full bg-blue-600" />
+            Description
+          </h3>
+          <p className="text-sm leading-relaxed text-slate-600 whitespace-pre-wrap break-words">
+            {demand.description}
+          </p>
         </div>
       )}
 
+      {/* ===== REQUIREMENTS SECTION ===== */}
       {demand.requirements?.length > 0 && (
-        <div>
-          <h4 className="text-sm font-semibold mb-2">Requirements</h4>
-          <ul className="space-y-1.5">
-            {demand.requirements.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
-                {r}
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+            <span className="inline-block w-1 h-1 rounded-full bg-blue-600" />
+            Key Requirements
+          </h3>
+          <ul className="space-y-2">
+            {demand.requirements.map((requirement, idx) => (
+              <li 
+                key={idx} 
+                className="flex items-start gap-3 group/item"
+              >
+                {/* Animated bullet */}
+                <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-2.5 group-hover/item:scale-125 group-hover/item:bg-blue-600 transition-all" />
+                
+                {/* Text with hover effect */}
+                <span className="text-sm text-slate-600 group-hover/item:text-slate-900 transition-colors">
+                  {requirement}
+                </span>
               </li>
             ))}
           </ul>
         </div>
       )}
 
+      {/* ===== SKILLS SECTION ===== */}
       {demand.skills?.length > 0 && (
-        <div>
-          <h4 className="text-sm font-semibold mb-2">Skills</h4>
-          <div className="flex flex-wrap gap-1.5">
-            {demand.skills.map((s) => (
-              <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+            <span className="inline-block w-1 h-1 rounded-full bg-blue-600" />
+            Required Skills
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {demand.skills.map((skill) => (
+              <span
+                key={skill}
+                className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-slate-100 to-slate-50 text-slate-700 border border-slate-200 hover:border-blue-300 hover:from-blue-50 hover:to-slate-50 hover:text-blue-700 hover:shadow-sm transition-all cursor-default"
+              >
+                {skill}
+              </span>
             ))}
           </div>
         </div>
       )}
 
-      <div className="pt-2 border-t">
-        <Button asChild className="w-full gap-2">
-          <Link href={`/agent/bulk-upload?demandId=${demand.id}`}>
+      {/* ===== CTA BUTTON ===== */}
+      <div className="pt-2 border-t border-slate-200">
+        <Link href={`/agent/bulk-upload?demandId=${demand.id}`}>
+          <button className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg gap-2 flex items-center justify-center transition-all hover:shadow-lg hover:shadow-blue-500/30 active:scale-95 transform">
             <Upload className="h-4 w-4" />
-            Upload CVs for this Role
-          </Link>
-        </Button>
+            <span>Upload CVs for this Role</span>
+          </button>
+        </Link>
       </div>
     </div>
   )
 }
+
 
 // ─── GRID CARD ────────────────────────────────────────────────────────────────
 function GridCard({ d, onSelect, onClose, selected, detailOpen }: {
@@ -186,7 +301,7 @@ function GridCard({ d, onSelect, onClose, selected, detailOpen }: {
           )}
           <span className="flex items-center gap-1.5">
             <DollarSign className="h-3 w-3 shrink-0" />
-            {d.salary.currency} {d.salary.min?.toLocaleString()} – {d.salary.max?.toLocaleString()}
+            {formatSalary(d.salary)}
           </span>
         </div>
 
@@ -274,7 +389,7 @@ function ListRow({ d, onSelect, onClose, selected, detailOpen }: {
             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{d.companyName}</span>
               {d.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{d.location}</span>}
-              <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />{d.salary.currency} {d.salary.min?.toLocaleString()} – {d.salary.max?.toLocaleString()}</span>
+              <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />{formatSalary(d.salary)}</span>
             </div>
           </div>
 
@@ -384,7 +499,7 @@ function TableView({ demands, onSelect, onClose, selected, detailOpen }: {
                   </span>
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell whitespace-nowrap text-muted-foreground">
-                  {d.salary.currency} {d.salary.min?.toLocaleString()} – {d.salary.max?.toLocaleString()}
+                  {formatSalary(d.salary)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="min-w-[80px]">

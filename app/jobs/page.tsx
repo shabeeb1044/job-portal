@@ -101,12 +101,14 @@ function JobsContent() {
         toast.success("Application submitted! The company will review your profile.")
         setJobs((prev) =>
           prev.map((j) =>
+            
             j.id === jobId
               ? { ...j, filledPositions: j.filledPositions + 1 }
               : j
           )
         )
       } else {
+        
         toast.error(data.error || "Failed to apply")
       }
     } catch {

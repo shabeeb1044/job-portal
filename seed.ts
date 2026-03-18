@@ -14,9 +14,9 @@ async function seed() {
 
   await initializeDatabase()
 
-  // Demo admin user (for /admin/login)
-  const adminEmail = '7start@gmail.com'
-  const adminPasswordPlain = 'admin123'
+  // Demo super admin user (for /admin/login)
+  const adminEmail = 'tystart@gmail.com'
+  const adminPasswordPlain = '3456fghj'
 
   const existingAdmin = await db.users.getByEmail(adminEmail)
   if (!existingAdmin) {
@@ -24,17 +24,19 @@ async function seed() {
       email: adminEmail,
       password: hashPassword(adminPasswordPlain),
       role: 'super_admin',
-      name: 'Main Admin',
+      name: 'Super Admin',
       isActive: true,
     })
-    console.log('Created admin user:', admin.email, 'password:', adminPasswordPlain)
+    console.log('✓ Created super admin user')
+    console.log('  Email:', admin.email)
+    console.log('  Password:', adminPasswordPlain)
   } else {
-    console.log('Admin user already exists:', adminEmail)
+    console.log('✓ Super admin user already exists:', adminEmail)
   }
 
   // Demo agency account (for agency login flows)
-  const agencyEmail = 'agency@example.com'
-  const agencyPasswordPlain = 'agency123'
+  const agencyEmail = '7star8@gmail.com'
+  const agencyPasswordPlain = 'rtyuignvb55'
 
   const existingAgency = await db.agencies.getByEmail(agencyEmail)
   if (!existingAgency) {
@@ -64,14 +66,16 @@ async function seed() {
     }
 
     const agency = await db.agencies.create(agencyInput)
-    console.log('Created demo agency:', agency.email, 'password:', agencyPasswordPlain)
+    console.log('✓ Created demo agency')
+    console.log('  Email:', agency.email)
+    console.log('  Password:', agencyPasswordPlain)
   } else {
-    console.log('Agency already exists:', agencyEmail)
+    console.log('✓ Agency already exists:', agencyEmail)
   }
 
   // Demo company account (for /login/company)
-  const companyEmail = 'company@example.com'
-  const companyPasswordPlain = 'company123'
+  const companyEmail = 'mshab52eeb350@gmail.com'
+  const companyPasswordPlain = '567hnik'
 
   const existingCompany = await db.companies.getByEmail(companyEmail)
   if (!existingCompany) {
@@ -112,21 +116,47 @@ async function seed() {
     }
 
     const company = await db.companies.create(companyInput)
-    console.log('Created demo company:', company.email, 'password:', companyPasswordPlain)
+    console.log('✓ Created demo company')
+    console.log('  Email:', company.email)
+    console.log('  Password:', companyPasswordPlain)
   } else {
-    console.log('Company already exists:', companyEmail)
+    console.log('✓ Company already exists:', companyEmail)
   }
 
-  console.log('Database seeding completed.')
+  // Demo agent account (for /login/agent)
+  const agentEmail = 'ertyu@gmail.com'
+  const agentPasswordPlain = 'erty5678'
+
+  const existingAgent = await db.users.getByEmail(agentEmail)
+  if (!existingAgent) {
+    const agent = await db.users.create({
+      email: agentEmail,
+      password: hashPassword(agentPasswordPlain),
+      role: 'agent',
+      name: 'Demo Agent',
+      isActive: true,
+    })
+    console.log('✓ Created demo agent')
+    console.log('  Email:', agent.email)
+    console.log('  Password:', agentPasswordPlain)
+  } else {
+    console.log('✓ Agent already exists:', agentEmail)
+  }
+
+  console.log('\n✓ Database seeding completed successfully!')
+  console.log('\n=== Default Login Credentials ===')
+  console.log('Super Admin: tystart@gmail.com / 3456fghj')
+  console.log('Company: mshab52eeb350@gmail.com / 567hnik')
+  console.log('Agency: 7star8@gmail.com / rtyuignvb55')
+  console.log('Agent: ertyu@gmail.com / erty5678')
 }
 
 seed()
   .then(() => {
-    console.log('Seed script finished successfully.')
+    console.log('\nSeed script finished successfully.')
     process.exit(0)
   })
   .catch((error) => {
     console.error('Seed script failed:', error)
     process.exit(1)
   })
-

@@ -191,85 +191,201 @@ function StatCard({ icon: Icon, label, value, colorClass, bgClass }: {
 // ─── Shared: detail dialog ────────────────────────────────────────────────────
 
 function DetailDialog({
-  demand, open, onOpenChange,
-}: { demand: Demand; open: boolean; onOpenChange: (o: boolean) => void }) {
+  demand,
+  open,
+  onOpenChange,
+}: {
+  demand: Demand;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[82vh] overflow-y-auto p-0">
-        {/* Header band */}
-        <div className="bg-muted/40 border-b px-6 py-5">
-          <DialogHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <DialogTitle className="text-lg font-semibold leading-tight">{demand.jobTitle}</DialogTitle>
-                <DialogDescription className="flex items-center gap-1.5 mt-1 text-sm">
-                  <Building2 className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{demand.companyName}</span>
-                  <span className="text-muted-foreground/50">·</span>
-                  <MapPin className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{demand.location}</span>
-                </DialogDescription>
-              </div>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0 rounded-xl shadow-xl">
+        {/* Accessible dialog title for screen readers */}
+        <DialogTitle className="sr-only">
+          {demand.jobTitle} at {demand.companyName}
+        </DialogTitle>
+
+        {/* ===== PREMIUM HEADER ===== */}
+        <div className="flex-shrink-0 bg-gradient-to-br from-slate-900 to-slate-800 text-white px-8 py-6 space-y-4">
+          {/* Top row: Title and Status */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold tracking-tight line-clamp-2 leading-tight">
+                {demand.jobTitle}
+              </h1>
+              <p className="text-sm text-slate-300 mt-1">
+                {demand.companyName}
+              </p>
+            </div>
+            <div className="flex-shrink-0">
               <StatusBadge status={demand.status} />
             </div>
-          </DialogHeader>
+          </div>
+
+          {/* Location and Gender Row */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 text-slate-200">
+              <MapPin className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-medium">{demand.location}</span>
+            </div>
+            {demand.gender && (
+              <>
+                <div className="h-1 w-1 rounded-full bg-slate-500" />
+                <div className="flex items-center gap-2 text-slate-200">
+                  <UserCheck className="h-4 w-4 text-blue-400" />
+                  <span className="text-sm font-medium">{demand.gender}</span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="px-6 py-5 space-y-5">
-          {/* Quick stats */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {[
-              { icon: DollarSign, label: "Salary",    val: formatSalary(demand.salary) },
-              { icon: UserCheck,  label: "Gender",    val: demand.gender },
-              { icon: Users,      label: "Positions", val: `${demand.filledPositions}/${demand.positions}` },
-              { icon: Calendar,   label: "Deadline",  val: new Date(demand.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) },
-            ].map(({ icon: Icon, label, val }) => (
-              <div key={label} className="flex items-center gap-2.5 rounded-lg border bg-muted/30 px-3 py-2.5">
-                <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-                  <p className="text-sm font-medium truncate">{val}</p>
+        {/* ===== SCROLLABLE CONTENT ===== */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          <div className="px-8 py-7 space-y-7">
+            
+            {/* ===== KEY METRICS GRID ===== */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Salary Card */}
+              <div className="group">
+                <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-blue-50 to-blue-50/50 rounded-lg border border-blue-200/50 hover:border-blue-300 transition-all">
+                  <div className="flex-shrink-0 p-2.5 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                    <DollarSign className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Salary
+                    </p>
+                    <p className="text-sm font-bold text-slate-900 mt-1 truncate">
+                      {formatSalary(demand.salary)}
+                    </p>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
 
-          {/* Description */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Description</p>
-            <p className="text-sm leading-relaxed text-muted-foreground">{demand.description}</p>
-          </div>
-
-          {/* Requirements */}
-          {demand.requirements?.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Requirements</p>
-              <ul className="space-y-2">
-                {demand.requirements.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <ChevronRight className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                    <span>{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Skills */}
-          {demand.skills?.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Skills</p>
-              <div className="flex flex-wrap gap-1.5">
-                {demand.skills.map(s => (
-                  <Badge key={s} variant="secondary" className="rounded-full">{s}</Badge>
-                ))}
+              {/* Deadline Card */}
+              <div className="group">
+                <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-amber-50 to-amber-50/50 rounded-lg border border-amber-200/50 hover:border-amber-300 transition-all">
+                  <div className="flex-shrink-0 p-2.5 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
+                    <Calendar className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Deadline
+                    </p>
+                    <p className="text-sm font-bold text-slate-900 mt-1">
+                      {new Date(demand.deadline).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                </div>
               </div>
+
+              {/* Positions Card */}
+              <div className="group">
+                <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-emerald-50 to-emerald-50/50 rounded-lg border border-emerald-200/50 hover:border-emerald-300 transition-all">
+                  <div className="flex-shrink-0 p-2.5 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors">
+                    <Users className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Positions
+                    </p>
+                    <p className="text-sm font-bold text-slate-900 mt-1">
+                      {demand.filledPositions} / {demand.positions}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gender Card */}
+              {demand.gender && (
+                <div className="group">
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-purple-50 to-purple-50/50 rounded-lg border border-purple-200/50 hover:border-purple-300 transition-all">
+                    <div className="flex-shrink-0 p-2.5 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                      <UserCheck className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Gender
+                      </p>
+                      <p className="text-sm font-bold text-slate-900 mt-1">
+                        {demand.gender}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* ===== DESCRIPTION SECTION ===== */}
+            {demand.description && (
+              <div className="space-y-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <span className="inline-block w-1 h-1 rounded-full bg-blue-600"></span>
+                  Description
+                </h2>
+                <p className="text-sm leading-relaxed text-slate-600 whitespace-pre-wrap break-words">
+                  {demand.description}
+                </p>
+              </div>
+            )}
+
+            {/* ===== REQUIREMENTS SECTION ===== */}
+            {demand.requirements && demand.requirements.length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <span className="inline-block w-1 h-1 rounded-full bg-blue-600"></span>
+                  Key Requirements
+                </h2>
+                <ul className="space-y-2">
+                  {demand.requirements.map((requirement, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-start gap-3 group/item"
+                    >
+                      <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-2.5 group-hover/item:scale-125 transition-transform" />
+                      <span className="text-sm text-slate-600 group-hover/item:text-slate-900 transition-colors">
+                        {requirement}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* ===== SKILLS SECTION ===== */}
+            {demand.skills && demand.skills.length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <span className="inline-block w-1 h-1 rounded-full bg-blue-600"></span>
+                  Required Skills
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {demand.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-slate-100 to-slate-50 text-slate-700 border border-slate-200 hover:border-blue-300 hover:from-blue-50 hover:to-slate-50 hover:text-blue-700 transition-all cursor-default"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bottom padding for scrolling */}
+            <div className="h-2" />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 // ─── Shared: submit dialog ────────────────────────────────────────────────────
@@ -455,7 +571,6 @@ export default function DemandsPage() {
           <StatCard icon={TrendingUp}  label="Total Positions"  value={totalPositions}  colorClass="text-violet-600"     bgClass="bg-violet-50 dark:bg-violet-900/20" />
           <StatCard icon={Users}       label="Positions Filled" value={totalFilled}     colorClass="text-emerald-600"    bgClass="bg-emerald-50 dark:bg-emerald-900/20" />
         </div>
-
         {/* Filters + view toggle */}
         <Card className="shadow-none">
           <CardContent className="py-3 px-4">

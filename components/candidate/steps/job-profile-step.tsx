@@ -325,9 +325,9 @@ export function JobProfileStep({ formData, updateFormData }: JobProfileStepProps
 
       {/* Video Profile */}
       <div className="space-y-2">
-        <Label>Record Video Self-Introduction *</Label>
+        <Label>Record Video Self-Introduction (Optional)</Label>
         <p className="text-xs text-muted-foreground mb-4">
-          Record a 1-minute video introducing yourself (required)
+          Record a 1-minute video introducing yourself (optional)
         </p>
 
         {/* Video Tips */}

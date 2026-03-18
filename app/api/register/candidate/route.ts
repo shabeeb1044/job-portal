@@ -100,10 +100,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'CV required' }, { status: 400 })
     }
 
-    if (!videoFile) {
-      return NextResponse.json({ error: 'Video required' }, { status: 400 })
-    }
-
     if (!acceptTerms) {
       return NextResponse.json(
         { error: 'Accept terms first' },
@@ -126,19 +122,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Video validation
-    if (!ALLOWED_VIDEO_TYPES.includes(videoFile.type)) {
-      return NextResponse.json(
-        { error: 'Video must be MP4, WebM, MOV, AVI, or MKV' },
-        { status: 400 }
-      )
-    }
-
-    if (videoFile.size > MAX_VIDEO_SIZE) {
-      return NextResponse.json(
-        { error: 'Video must be under 50 MB' },
-        { status: 400 }
-      )
+    // Video validation (only when video is provided)
+    if (videoFile) {
+      if (!ALLOWED_VIDEO_TYPES.includes(videoFile.type)) {
+        return NextResponse.json(
+          { error: 'Video must be MP4, WebM, MOV, AVI, or MKV' },
+          { status: 400 }
+        )
+      }
+      if (videoFile.size > MAX_VIDEO_SIZE) {
+        return NextResponse.json(
+          { error: 'Video must be under 50 MB' },
+          { status: 400 }
+        )
+      }
     }
 
     // Check for duplicate email
@@ -177,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     // Save files to Cloudinary
     const cvUrl = await saveFileToCloudinary(cvFile, 'cv')
-    const videoUrl = await saveFileToCloudinary(videoFile, 'video')
+    const videoUrl = videoFile ? await saveFileToCloudinary(videoFile, 'video') : undefined
 
     const candidate = await db.candidates.create({
       role: 'candidate',
@@ -237,7 +234,7 @@ export async function POST(request: NextRequest) {
         email: candidate.email,
         name: `${candidate.firstName} ${candidate.lastName}`,
         cvUrl,
-        videoUrl,
+        ...(videoUrl && { videoUrl }),
       },
     })
   } catch (error) {

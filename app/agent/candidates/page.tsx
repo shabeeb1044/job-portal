@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Search, Users, Loader2, Plus, X, Upload, ChevronDown } from "lucide-react"
+import { Search, Users, Loader2, Plus, X, Upload, ChevronDown, Eye, Edit } from "lucide-react"
 import { PageLoader } from "@/components/page-loader"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +25,15 @@ interface CandidateRow {
   currentLocation: string
   createdAt: string
   source: string
+  dateOfBirth?: string
+  gender?: string
+  nationality?: string
+  maritalStatus?: string
+  currentSalary?: string
+  salaryExpectation?: string
+  visaValidity?: string
+  languages?: string[]
+  remarks?: string
 }
 
 interface JobCategoryOption {
@@ -271,6 +280,14 @@ export default function AgentCandidatesPage() {
   const [agentId, setAgentId]       = useState<string>("")
   const [form, setForm]             = useState(EMPTY_FORM)
   const [cvFile, setCvFile]         = useState<File | null>(null)
+  const [saving, setSaving]         = useState(false)
+
+  const [editCandidate, setEditCandidate] = useState<CandidateRow | null>(null)
+  const [editOpen, setEditOpen]     = useState(false)
+  const [editSkillTags, setEditSkillTags] = useState<string[]>([])
+
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [selected, setSelected]     = useState<CandidateRow | null>(null)
 
   // field setter helpers
   const setField = (key: keyof typeof EMPTY_FORM) =>
@@ -311,6 +328,40 @@ export default function AgentCandidatesPage() {
       c.skills?.some(s => s.toLowerCase().includes(q))
     )
   })
+
+  function openEdit(c: CandidateRow) {
+    setEditCandidate({ ...c })
+    setEditSkillTags([...(c.skills ?? [])])
+    setEditOpen(true)
+  }
+
+  async function handleSaveEdit() {
+    if (!editCandidate) return
+    setSaving(true)
+    try {
+      const res  = await fetch(`/api/agency/candidate/${editCandidate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName:       editCandidate.firstName,
+          lastName:        editCandidate.lastName,
+          phone:           editCandidate.phone,
+          skills:          editSkillTags,
+          currentLocation: editCandidate.currentLocation,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setEditOpen(false)
+        fetch(`/api/agent/candidates?agentId=${agentId}`)
+          .then(r => r.json())
+          .then(d => { if (d.success) setCandidates(d.candidates) })
+          .catch(console.error)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // ── Submit ──────────────────────────────────────────────────────────────────
   async function handleCreateCandidate(e: React.FormEvent) {
@@ -403,10 +454,13 @@ export default function AgentCandidatesPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    {["Name","Email","Phone","Location","Skills","Status","Registered"].map(h => (
+                    {["Name","Email","Phone","Location","Skills","Status","Registered","Actions"].map(h => (
                       <TableHead
                         key={h}
-                        className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground h-9"
+                        className={cn(
+                          "text-[11px] font-semibold uppercase tracking-wider text-muted-foreground h-9",
+                          h === "Actions" && "text-right",
+                        )}
                       >
                         {h}
                       </TableHead>
@@ -456,6 +510,31 @@ export default function AgentCandidatesPage() {
                           {new Date(c.createdAt).toLocaleDateString("en-GB", {
                             day: "numeric", month: "short", year: "numeric",
                           })}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              title="View details"
+                              onClick={() => {
+                                setSelected(c)
+                                setDetailOpen(true)
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              title="Edit"
+                              onClick={() => openEdit(c)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -648,6 +727,272 @@ export default function AgentCandidatesPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md p-0">
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold">Edit Candidate</DialogTitle>
+              <DialogDescription className="text-xs">
+                Update candidate information.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {editCandidate && (
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <Field label="First name">
+                  <Input
+                    value={editCandidate.firstName}
+                    onChange={e => setEditCandidate({ ...editCandidate, firstName: e.target.value })}
+                  />
+                </Field>
+                <Field label="Last name">
+                  <Input
+                    value={editCandidate.lastName}
+                    onChange={e => setEditCandidate({ ...editCandidate, lastName: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <Field label="Phone">
+                <Input
+                  value={editCandidate.phone}
+                  onChange={e => setEditCandidate({ ...editCandidate, phone: e.target.value })}
+                />
+              </Field>
+              <Field label="Location">
+                <Input
+                  value={editCandidate.currentLocation}
+                  onChange={e => setEditCandidate({ ...editCandidate, currentLocation: e.target.value })}
+                />
+              </Field>
+              <Field
+                label="Skills"
+                hint="Type a skill and press Enter, or pick from suggestions"
+              >
+                <TagInput
+                  tags={editSkillTags}
+                  onChange={setEditSkillTags}
+                  suggestions={[
+                    "React","Node.js","Python","TypeScript","AWS","DevOps","Docker",
+                    "Machine Learning","SQL","MongoDB","Java","PHP","Flutter","iOS","Android",
+                    "Project Management","Sales","Marketing","Finance","HR","Logistics",
+                  ]}
+                />
+              </Field>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  disabled={saving}
+                  onClick={() => setEditOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="h-9 min-w-[130px] gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setSelected(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0">
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold">
+                Candidate details
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Full profile information for this candidate.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {selected && (
+            <div className="px-6 py-5 space-y-6 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Avatar firstName={selected.firstName} lastName={selected.lastName} />
+                  <div>
+                    <p className="text-base font-semibold">
+                      {selected.firstName} {selected.lastName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {selected.email}
+                    </p>
+                    {selected.currentLocation && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selected.currentLocation}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right space-y-1">
+                  <div>
+                    {STATUS_MAP[selected.status] ? (
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium",
+                          STATUS_MAP[selected.status].className,
+                        )}
+                      >
+                        {STATUS_MAP[selected.status].label}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {selected.status?.replace(/_/g, " ")}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Added {selected.createdAt ? new Date(selected.createdAt).toLocaleDateString() : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Personal
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Date of birth</p>
+                      <p className="font-medium">{selected.dateOfBirth || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Gender</p>
+                      <p className="font-medium">{selected.gender || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Nationality</p>
+                      <p className="font-medium">{selected.nationality || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Marital status</p>
+                      <p className="font-medium">{selected.maritalStatus || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Contact
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Email</p>
+                      <p className="font-medium break-all">{selected.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Phone</p>
+                      <p className="font-medium">{selected.phone || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Location</p>
+                      <p className="font-medium">{selected.currentLocation || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Role & compensation
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Current salary</p>
+                      <p className="font-medium">{selected.currentSalary || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Salary expectation</p>
+                      <p className="font-medium">{selected.salaryExpectation || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Visa validity</p>
+                      <p className="font-medium">{selected.visaValidity || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Languages
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {selected.languages && selected.languages.length > 0 ? (
+                      selected.languages.map(lang => (
+                        <Badge
+                          key={lang}
+                          variant="secondary"
+                          className="text-xs px-2 py-0 font-normal"
+                        >
+                          {lang}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">—</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  Skills
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selected.skills && selected.skills.length > 0 ? (
+                    selected.skills.map(skill => (
+                      <Badge
+                        key={skill}
+                        variant="secondary"
+                        className="text-xs px-2 py-0 font-normal"
+                      >
+                        {skill}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No skills added</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  Notes
+                </p>
+                <p className="text-xs">
+                  {selected.remarks || (
+                    <span className="text-muted-foreground">No additional notes</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -26,7 +26,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, emoji, description, slug: slugInput, sortOrder, isActive } = body
+    const { name, emoji, description, slug: slugInput, sortOrder, isActive, group } = body
     if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json(
         { error: 'Name is required' },
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
     const maxOrder = await db.jobCategories.getAll(false).then((list) =>
       list.length > 0 ? Math.max(...list.map((c) => c.sortOrder), 0) + 1 : 1
     )
+    const validGroups = ['white_collar', 'blue_collar', 'other'] as const
     const newCat: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'> = {
       slug,
       name: name.trim(),
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       description: description != null ? String(description).trim() : '',
       sortOrder: typeof sortOrder === 'number' ? sortOrder : maxOrder,
       isActive: isActive !== false,
+      ...(group && validGroups.includes(group) ? { group } : {}),
     }
     const created = await db.jobCategories.create(newCat)
     return NextResponse.json({ success: true, category: created })
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, slug, name, emoji, description, sortOrder, isActive } = body
+    const { id, slug, name, emoji, description, sortOrder, isActive, group } = body
     const categoryId = id != null ? String(id) : ''
     if (!categoryId) {
       return NextResponse.json({ error: 'Category id required' }, { status: 400 })
@@ -84,6 +86,10 @@ export async function PATCH(request: NextRequest) {
     if (description !== undefined) updates.description = String(description).trim()
     if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder)
     if (isActive !== undefined) updates.isActive = !!isActive
+    if (group !== undefined) {
+      const validGroups = ['white_collar', 'blue_collar', 'other'] as const
+      updates.group = validGroups.includes(group) ? group : undefined
+    }
 
     const updated = await db.jobCategories.update(categoryId, updates)
     if (!updated) {

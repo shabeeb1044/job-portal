@@ -78,8 +78,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (user.role === 'company' || user.role === 'corporate') {
-      const company = await db.companies.getById(user.companyId || user.id)
+    if (user.role === 'company' || user.role === 'corporate' || user.role === 'staff') {
+      const companyId = user.companyId || user.id
+      const company = await db.companies.getById(companyId)
       if (company) {
         if (!company.subscriptionStatus || company.subscriptionStatus !== 'active') {
           return NextResponse.json(

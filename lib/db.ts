@@ -3,7 +3,15 @@ import { getDatabase } from './mongodb'
 import { ObjectId } from 'mongodb'
 import type { BenefitType, NationalityType } from './job-config'
 
-export type UserRole = 'super_admin' | 'admin' | 'agency' | 'agent' | 'company' | 'corporate' | 'candidate'
+export type UserRole =
+  | 'super_admin'
+  | 'admin'
+  | 'agency'
+  | 'agent'
+  | 'company'
+  | 'corporate'
+  | 'staff'
+  | 'candidate'
 
 export interface User {
   id: string
@@ -260,6 +268,9 @@ export interface Demand {
   dayOffPerMonth: number
   // Free-form note about working time / shift
   timeRemark?: string
+  // Structured shift time (optional)
+  shiftStartTime?: string // "HH:mm"
+  shiftEndTime?: string // "HH:mm"
   // Extra description when "other" benefit is selected
   otherBenefitNote?: string
   // Benefits & eligibility
@@ -277,6 +288,9 @@ export interface Demand {
   deadline: string
   createdAt: string
   updatedAt: string
+  // Job category & sub-category (optional, for structured classification)
+  jobCategoryId?: string
+  jobSubCategoryId?: string
 }
 
 export type ApplicationStatus = 'submitted' | 'pending' | 'shortlisted' | 'interview' | 'hired' | 'selected' | 'rejected' | 'withdrawn'
@@ -325,12 +339,26 @@ export interface Settings {
   updatedAt: string
 }
 
+export type JobCategoryGroup = 'white_collar' | 'blue_collar' | 'other'
+
 export interface JobCategory {
   id: string
   slug: string
   name: string
   emoji: string
   description: string
+  sortOrder: number
+  isActive: boolean
+  group?: JobCategoryGroup
+  createdAt: string
+  updatedAt: string
+}
+
+export interface JobSubCategory {
+  id: string
+  categoryId: string
+  slug: string
+  name: string
   sortOrder: number
   isActive: boolean
   createdAt: string
@@ -413,6 +441,13 @@ export const db = {
       const db = await getDatabase()
       const user = await db.collection('users').findOne({ email })
       return user ? toInterface<User>(user) : undefined
+    },
+    getByCompanyId: async (companyId: string, role: UserRole | 'any' = 'any'): Promise<User[]> => {
+      const db = await getDatabase()
+      const filter: Record<string, unknown> = { companyId }
+      if (role !== 'any') filter.role = role
+      const users = await db.collection('users').find(filter).sort({ createdAt: -1 }).toArray()
+      return users.map(doc => toInterface<User>(doc))
     },
     create: async (user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> => {
       const db = await getDatabase()
@@ -1021,6 +1056,54 @@ export const db = {
       return (result.deletedCount ?? 0) > 0
     },
   },
+  jobSubCategories: {
+    getAll: async (activeOnly = false): Promise<JobSubCategory[]> => {
+      const db = await getDatabase()
+      const filter = activeOnly ? { isActive: true } : {}
+      const list = await db.collection('jobSubCategories').find(filter).sort({ sortOrder: 1, name: 1 }).toArray()
+      return list.map(doc => toInterface<JobSubCategory>(doc))
+    },
+    getByCategoryId: async (categoryId: string, activeOnly = false): Promise<JobSubCategory[]> => {
+      const db = await getDatabase()
+      const filter: Record<string, unknown> = { categoryId }
+      if (activeOnly) filter.isActive = true
+      const list = await db.collection('jobSubCategories').find(filter).sort({ sortOrder: 1, name: 1 }).toArray()
+      return list.map(doc => toInterface<JobSubCategory>(doc))
+    },
+    getById: async (id: string): Promise<JobSubCategory | undefined> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const doc = await db.collection('jobSubCategories').findOne(query)
+      return doc ? toInterface<JobSubCategory>(doc) : undefined
+    },
+    create: async (sub: Omit<JobSubCategory, 'id' | 'createdAt' | 'updatedAt'>): Promise<JobSubCategory> => {
+      const db = await getDatabase()
+      const now = new Date().toISOString()
+      const newSub = { ...sub, createdAt: now, updatedAt: now }
+      const result = await db.collection('jobSubCategories').insertOne(newSub)
+      return toInterface<JobSubCategory>({ ...newSub, _id: result.insertedId })
+    },
+    update: async (id: string, updates: Partial<JobSubCategory>): Promise<JobSubCategory | null> => {
+      const db = await getDatabase()
+      const updateDoc = { ...updates, updatedAt: new Date().toISOString() }
+      delete (updateDoc as any).id
+      delete (updateDoc as any).createdAt
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const result = await db.collection('jobSubCategories').findOneAndUpdate(
+        query,
+        { $set: updateDoc },
+        { returnDocument: 'after' }
+      )
+      const doc = result?.value ?? result
+      return doc ? toInterface<JobSubCategory>(doc) : null
+    },
+    delete: async (id: string): Promise<boolean> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const result = await db.collection('jobSubCategories').deleteOne(query)
+      return (result.deletedCount ?? 0) > 0
+    },
+  },
   notifications: {
     getByRecipient: async (
       recipientType: NotificationRecipientType,
@@ -1103,6 +1186,8 @@ export async function initializeDatabase() {
     await database.collection('agentPoints').createIndex({ agencyId: 1 })
     await database.collection('jobCategories').createIndex({ slug: 1 }, { unique: true })
     await database.collection('jobCategories').createIndex({ sortOrder: 1 })
+    await database.collection('jobSubCategories').createIndex({ categoryId: 1 })
+    await database.collection('jobSubCategories').createIndex({ sortOrder: 1 })
     await database.collection('candidateSources').createIndex({ agencyId: 1 })
     await database.collection('candidateSources').createIndex({ agentId: 1 })
     await database.collection('notifications').createIndex({ recipientType: 1, recipientId: 1 })
@@ -1176,6 +1261,8 @@ export async function initializeDatabase() {
     })
   }
 
+
+
   // Create super admin if doesn't exist
   const existingAdmin = await db.users.getByEmail('shabeeb')
   if (!existingAdmin) {
@@ -1190,27 +1277,35 @@ export async function initializeDatabase() {
     console.log('Super admin created:', adminUser.email)
   }
 
-  // Seed default job categories if none exist
+  // Seed default job categories and sub-categories if none exist
   const existingCategories = await db.jobCategories.getAll()
   if (existingCategories.length === 0) {
-    const defaults: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'>[] = [
-      { slug: 'construction', name: 'Construction', emoji: '👷', description: 'Construction workers, laborers', sortOrder: 1, isActive: true },
-      { slug: 'driver', name: 'Driver', emoji: '🚚', description: 'Taxi, truck, delivery drivers', sortOrder: 2, isActive: true },
-      { slug: 'cook', name: 'Cook', emoji: '🍳', description: 'Chefs, kitchen staff', sortOrder: 3, isActive: true },
-      { slug: 'cleaner', name: 'Cleaner', emoji: '🧹', description: 'Housekeeping, janitorial', sortOrder: 4, isActive: true },
-      { slug: 'office', name: 'Office Staff', emoji: '🖥️', description: 'Admin, clerical, reception', sortOrder: 5, isActive: true },
-      { slug: 'security', name: 'Security', emoji: '🛡️', description: 'Guards, security officers', sortOrder: 6, isActive: true },
-      { slug: 'retail', name: 'Retail', emoji: '🛒', description: 'Sales, cashiers, store staff', sortOrder: 7, isActive: true },
-      { slug: 'healthcare', name: 'Healthcare', emoji: '🏥', description: 'Nurses, caregivers, medical', sortOrder: 8, isActive: true },
-      { slug: 'hospitality', name: 'Hospitality', emoji: '🏨', description: 'Hotel, restaurant staff', sortOrder: 9, isActive: true },
-      { slug: 'beauty', name: 'Beauty & Salon', emoji: '💇', description: 'Hair stylists, beauticians', sortOrder: 10, isActive: true },
-      { slug: 'delivery', name: 'Delivery', emoji: '📦', description: 'Delivery personnel', sortOrder: 11, isActive: true },
-      { slug: 'maintenance', name: 'Maintenance', emoji: '🔧', description: 'Technicians, repairmen', sortOrder: 12, isActive: true },
-    ]
-    for (const cat of defaults) {
-      await db.jobCategories.create(cat)
+    const { DEFAULT_JOB_CATEGORIES } = await import('./seed-job-categories')
+    const slugify = (t: string) => t.trim().toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-')
+    let sortOrder = 1
+    for (const seed of DEFAULT_JOB_CATEGORIES) {
+      const cat = await db.jobCategories.create({
+        slug: seed.slug,
+        name: seed.name,
+        emoji: seed.emoji,
+        description: seed.description,
+        sortOrder,
+        isActive: true,
+        group: seed.group,
+      })
+      let subOrder = 1
+      for (const subName of seed.subCategories) {
+        await db.jobSubCategories.create({
+          categoryId: cat.id,
+          slug: slugify(subName),
+          name: subName,
+          sortOrder: subOrder++,
+          isActive: true,
+        })
+      }
+      sortOrder++
     }
-    console.log('Default job categories seeded')
+    console.log('Default job categories and sub-categories seeded (White Collar, Blue Collar, Other)')
   }
 
   // Initialize settings

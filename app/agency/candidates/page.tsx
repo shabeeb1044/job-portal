@@ -31,7 +31,16 @@ import { Label } from "@/components/ui/label"
 import { MessageBanner } from "@/components/ui/message-banner"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  Search, Edit, Trash2, Loader2, Users, Plus, X, Upload, ChevronDown,
+  Search,
+  Edit,
+  Trash2,
+  Loader2,
+  Users,
+  Plus,
+  X,
+  Upload,
+  ChevronDown,
+  Eye,
 } from "lucide-react"
 import { PageLoader } from "@/components/page-loader"
 import { cn } from "@/lib/utils"
@@ -51,6 +60,16 @@ interface CandidateRow {
   currentJobTitle?: string
   currentLocation: string
   createdAt: string
+  // Optional extra fields for detail view
+  dateOfBirth?: string
+  gender?: string
+  nationality?: string
+  maritalStatus?: string
+  currentSalary?: string
+  salaryExpectation?: string
+  visaValidity?: string
+  languages?: string[]
+  remarks?: string
 }
 
 interface JobCategoryOption { id: string; name: string }
@@ -270,6 +289,10 @@ export default function CandidatesPage() {
 
   // Delete
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: "" })
+
+  // Details side panel
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [selected, setSelected] = useState<CandidateRow | null>(null)
 
   // helpers
   const setField = (key: keyof typeof EMPTY_FORM) =>
@@ -529,12 +552,34 @@ export default function CandidatesPage() {
                         </TableCell>
                         <TableCell className="py-3">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              onClick={() => openEdit(c)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              title="View details"
+                              onClick={() => {
+                                setSelected(c)
+                                setDetailOpen(true)
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              title="Edit"
+                              onClick={() => openEdit(c)}
+                            >
                               <Edit className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={() => setDeleteConfirm({ open: true, id: c.id })}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              title="Delete"
+                              onClick={() => setDeleteConfirm({ open: true, id: c.id })}
+                            >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -737,6 +782,186 @@ export default function CandidatesPage() {
         variant="destructive"
         onConfirm={confirmDelete}
       />
+
+      {/* ── Details Side Panel ────────────────────────────────────────────────── */}
+      <Dialog open={detailOpen} onOpenChange={(open) => {
+        setDetailOpen(open)
+        if (!open) setSelected(null)
+      }}>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0">
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold">
+                Candidate details
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Full profile information for this candidate.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {selected && (
+            <div className="px-6 py-5 space-y-6 text-sm">
+              {/* Header summary */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Avatar firstName={selected.firstName} lastName={selected.lastName} />
+                  <div>
+                    <p className="text-base font-semibold">
+                      {selected.firstName} {selected.lastName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {selected.email}
+                    </p>
+                    {selected.currentLocation && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selected.currentLocation}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right space-y-1">
+                  <div>
+                    {STATUS_MAP[selected.status] ? (
+                      <span className={cn(
+                        "inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium",
+                        STATUS_MAP[selected.status].className,
+                      )}>
+                        {STATUS_MAP[selected.status].label}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {selected.status?.replace(/_/g, " ")}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <Badge variant="outline" className="text-xs font-normal capitalize">
+                      {SOURCE_MAP[selected.source] ?? selected.source?.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Added {selected.createdAt ? new Date(selected.createdAt).toLocaleDateString() : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Personal / contact */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Personal
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Date of birth</p>
+                      <p className="font-medium">{selected.dateOfBirth || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Gender</p>
+                      <p className="font-medium">{selected.gender || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Nationality</p>
+                      <p className="font-medium">{selected.nationality || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Marital status</p>
+                      <p className="font-medium">{selected.maritalStatus || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Contact
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Email</p>
+                      <p className="font-medium break-all">{selected.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Phone</p>
+                      <p className="font-medium">{selected.phone || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Location</p>
+                      <p className="font-medium">{selected.currentLocation || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Role & compensation */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Role & compensation
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Current salary</p>
+                      <p className="font-medium">{selected.currentSalary || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Salary expectation</p>
+                      <p className="font-medium">{selected.salaryExpectation || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Visa validity</p>
+                      <p className="font-medium">{selected.visaValidity || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Languages
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {selected.languages && selected.languages.length > 0 ? (
+                      selected.languages.map(lang => (
+                        <Badge key={lang} variant="secondary" className="text-xs px-2 py-0 font-normal">
+                          {lang}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">—</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Skills */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  Skills
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selected.skills && selected.skills.length > 0 ? (
+                    selected.skills.map(skill => (
+                      <Badge key={skill} variant="secondary" className="text-xs px-2 py-0 font-normal">
+                        {skill}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No skills added</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  Notes
+                </p>
+                <p className="text-xs">
+                  {selected.remarks || <span className="text-muted-foreground">No additional notes</span>}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

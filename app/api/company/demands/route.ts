@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
       createdByUserId,
       createdByEmployeeName,
       timeRemark,
+      shiftStartTime,
+      shiftEndTime,
       otherBenefitNote,
       description = '',
       location = '',
@@ -44,6 +46,8 @@ export async function POST(request: NextRequest) {
       joining = 'immediate',
       status = 'open',
       deadline,
+      jobCategoryId,
+      jobSubCategoryId,
     } = body as {
       companyId: string
       companyName: string
@@ -51,6 +55,8 @@ export async function POST(request: NextRequest) {
       createdByUserId?: string
       createdByEmployeeName?: string
       timeRemark?: string
+      shiftStartTime?: string
+      shiftEndTime?: string
       otherBenefitNote?: string
       description?: string
       location?: string
@@ -67,6 +73,8 @@ export async function POST(request: NextRequest) {
       joining?: 'immediate' | 'scheduled'
       status?: 'open' | 'closed' | 'on_hold'
       deadline?: string
+      jobCategoryId?: string
+      jobSubCategoryId?: string
     }
 
     if (!companyId || !companyName || !roles?.length) {
@@ -93,6 +101,8 @@ export async function POST(request: NextRequest) {
         createdByUserId,
         createdByEmployeeName,
         timeRemark,
+        shiftStartTime,
+        shiftEndTime,
         otherBenefitNote,
         jobTitle: role.jobTitle.trim(),
         description,
@@ -116,6 +126,8 @@ export async function POST(request: NextRequest) {
         joining,
         status,
         deadline: deadlineDate,
+        jobCategoryId: jobCategoryId || undefined,
+        jobSubCategoryId: jobSubCategoryId || undefined,
       })
       created.push({ id: demand.id, jobTitle: demand.jobTitle, quantity: demand.quantity })
     }

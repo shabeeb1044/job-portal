@@ -86,6 +86,8 @@ type DemandInfo = {
   status?: string
   benefits?: string[]
   timeRemark?: string
+  shiftStartTime?: string
+  shiftEndTime?: string
   otherBenefitNote?: string
   deadline?: string
   createdAt?: string
@@ -135,6 +137,8 @@ export default function CompanyDemandSubmissionsPage() {
             status: d.status,
             benefits: d.benefits,
             timeRemark: d.timeRemark,
+            shiftStartTime: d.shiftStartTime,
+            shiftEndTime: d.shiftEndTime,
             otherBenefitNote: d.otherBenefitNote,
             deadline: d.deadline,
             createdAt: d.createdAt,
@@ -287,6 +291,14 @@ export default function CompanyDemandSubmissionsPage() {
                   <span className="font-medium text-foreground">
                     {demand.benefits.slice(0, 4).join(", ")}
                     {demand.benefits.length > 4 && ` +${demand.benefits.length - 4}`}
+                  </span>
+                </p>
+              )}
+              {(demand.shiftStartTime || demand.shiftEndTime) && (
+                <p className="text-xs text-muted-foreground">
+                  Shift time:{" "}
+                  <span className="font-medium text-foreground">
+                    {demand.shiftStartTime || "—"} to {demand.shiftEndTime || "—"}
                   </span>
                 </p>
               )}

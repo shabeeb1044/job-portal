@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Briefcase, ArrowLeft, Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { Briefcase, ArrowLeft, Loader2, Plus, Pencil, Trash2, Tags } from "lucide-react"
 import { MessageBanner } from "@/components/ui/message-banner"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
@@ -37,6 +37,24 @@ type JobCategoryRow = {
   name: string
   emoji: string
   description: string
+  sortOrder: number
+  isActive: boolean
+  group?: "white_collar" | "blue_collar" | "other"
+  createdAt: string
+  updatedAt: string
+}
+
+const GROUP_LABELS: Record<string, string> = {
+  white_collar: "White Collar",
+  blue_collar: "Blue Collar",
+  other: "Other",
+}
+
+type JobSubCategoryRow = {
+  id: string
+  categoryId: string
+  slug: string
+  name: string
   sortOrder: number
   isActive: boolean
   createdAt: string
@@ -54,6 +72,17 @@ export default function AdminJobCategoriesPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<JobCategoryRow | null>(null)
+  const [subCategoryDialogOpen, setSubCategoryDialogOpen] = useState(false)
+  const [subCategoryFor, setSubCategoryFor] = useState<JobCategoryRow | null>(null)
+  const [subCategories, setSubCategories] = useState<JobSubCategoryRow[]>([])
+  const [subCategoryLoading, setSubCategoryLoading] = useState(false)
+  const [subCategoryForm, setSubCategoryForm] = useState({ name: "", slug: "", sortOrder: "0", isActive: true })
+  const [editingSubId, setEditingSubId] = useState<string | null>(null)
+  const [subSaving, setSubSaving] = useState(false)
+  const [subDeleteConfirmOpen, setSubDeleteConfirmOpen] = useState(false)
+  const [subToDelete, setSubToDelete] = useState<JobSubCategoryRow | null>(null)
+  const [seeding, setSeeding] = useState(false)
+  const [seedConfirmOpen, setSeedConfirmOpen] = useState(false)
   const [form, setForm] = useState({
     name: "",
     slug: "",
@@ -61,6 +90,7 @@ export default function AdminJobCategoriesPage() {
     description: "",
     sortOrder: "0",
     isActive: true,
+    group: "" as "" | "white_collar" | "blue_collar" | "other",
   })
 
   useEffect(() => {
@@ -70,7 +100,7 @@ export default function AdminJobCategoriesPage() {
       return
     }
     const userData = JSON.parse(user)
-    if (userData.role !== "super_admin") {
+    if (userData.role !== "super_admin" && userData.role !== "admin") {
       router.push("/admin/dashboard")
       return
     }
@@ -103,6 +133,7 @@ export default function AdminJobCategoriesPage() {
       description: "",
       sortOrder: String(nextOrder),
       isActive: true,
+      group: "",
     })
     setDialogOpen(true)
   }
@@ -116,6 +147,7 @@ export default function AdminJobCategoriesPage() {
       description: cat.description || "",
       sortOrder: String(cat.sortOrder),
       isActive: cat.isActive,
+      group: cat.group || "",
     })
     setDialogOpen(true)
   }
@@ -142,6 +174,7 @@ export default function AdminJobCategoriesPage() {
             description: form.description,
             sortOrder: isNaN(sortOrder) ? 0 : sortOrder,
             isActive: form.isActive,
+            group: form.group || undefined,
           }),
         })
         const data = await res.json()
@@ -162,6 +195,7 @@ export default function AdminJobCategoriesPage() {
             description: form.description,
             sortOrder: isNaN(sortOrder) ? undefined : sortOrder,
             isActive: form.isActive,
+            group: form.group || undefined,
           }),
         })
         const data = await res.json()
@@ -206,6 +240,156 @@ export default function AdminJobCategoriesPage() {
     }
   }
 
+  const openSubCategoryDialog = async (cat: JobCategoryRow) => {
+    setSubCategoryFor(cat)
+    setSubCategoryDialogOpen(true)
+    setEditingSubId(null)
+    setSubCategoryForm({ name: "", slug: "", sortOrder: "0", isActive: true })
+    setSubCategoryLoading(true)
+    try {
+      const res = await fetch(`/api/admin/job-sub-categories?categoryId=${encodeURIComponent(cat.id)}`)
+      const data = await res.json()
+      setSubCategories(data.subCategories || [])
+    } catch (e) {
+      setSubCategories([])
+    } finally {
+      setSubCategoryLoading(false)
+    }
+  }
+
+  const loadSubCategories = async () => {
+    if (!subCategoryFor) return
+    setSubCategoryLoading(true)
+    try {
+      const res = await fetch(`/api/admin/job-sub-categories?categoryId=${encodeURIComponent(subCategoryFor.id)}`)
+      const data = await res.json()
+      setSubCategories(data.subCategories || [])
+    } catch (e) {
+      setSubCategories([])
+    } finally {
+      setSubCategoryLoading(false)
+    }
+  }
+
+  const openAddSub = () => {
+    setEditingSubId(null)
+    const nextOrder = subCategories.length > 0 ? Math.max(...subCategories.map((s) => s.sortOrder), 0) + 1 : 1
+    setSubCategoryForm({ name: "", slug: "", sortOrder: String(nextOrder), isActive: true })
+  }
+
+  const openEditSub = (sub: JobSubCategoryRow) => {
+    setEditingSubId(sub.id)
+    setSubCategoryForm({
+      name: sub.name,
+      slug: sub.slug,
+      sortOrder: String(sub.sortOrder),
+      isActive: sub.isActive,
+    })
+  }
+
+  const doSaveSub = async () => {
+    if (!subCategoryFor) return
+    setSubSaving(true)
+    setMessage(null)
+    try {
+      const sortOrder = parseInt(subCategoryForm.sortOrder, 10)
+      if (editingSubId) {
+        const res = await fetch("/api/admin/job-sub-categories", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingSubId,
+            name: subCategoryForm.name,
+            slug: subCategoryForm.slug || undefined,
+            sortOrder: isNaN(sortOrder) ? 0 : sortOrder,
+            isActive: subCategoryForm.isActive,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setMessage({ type: "error", text: data.error || "Update failed" })
+          setSubSaving(false)
+          return
+        }
+        setMessage({ type: "success", text: "Sub-category updated" })
+      } else {
+        const res = await fetch("/api/admin/job-sub-categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            categoryId: subCategoryFor.id,
+            name: subCategoryForm.name,
+            slug: subCategoryForm.slug || undefined,
+            sortOrder: isNaN(sortOrder) ? undefined : sortOrder,
+            isActive: subCategoryForm.isActive,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setMessage({ type: "error", text: data.error || "Create failed" })
+          setSubSaving(false)
+          return
+        }
+        setMessage({ type: "success", text: "Sub-category created" })
+      }
+      await loadSubCategories()
+      setEditingSubId(null)
+      setSubCategoryForm({ name: "", slug: "", sortOrder: "0", isActive: true })
+    } catch (e) {
+      setMessage({ type: "error", text: "Request failed" })
+    } finally {
+      setSubSaving(false)
+    }
+  }
+
+  const openSubDeleteConfirm = (sub: JobSubCategoryRow) => {
+    setSubToDelete(sub)
+    setSubDeleteConfirmOpen(true)
+  }
+
+  const doSeedDefaults = async () => {
+    setSeeding(true)
+    setMessage(null)
+    try {
+      const res = await fetch("/api/admin/job-categories/seed?force=true", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.error || "Seed failed" })
+      } else {
+        setMessage({ type: "success", text: data.message || "Defaults seeded" })
+        await loadCategories()
+      }
+      setSeedConfirmOpen(false)
+    } catch (e) {
+      setMessage({ type: "error", text: "Seed failed" })
+      setSeedConfirmOpen(false)
+    } finally {
+      setSeeding(false)
+    }
+  }
+
+  const doDeleteSub = async () => {
+    if (!subToDelete) return
+    try {
+      const res = await fetch(`/api/admin/job-sub-categories?id=${encodeURIComponent(subToDelete.id)}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setMessage({ type: "error", text: data.error || "Delete failed" })
+      } else {
+        setMessage({ type: "success", text: "Sub-category deleted" })
+        await loadSubCategories()
+      }
+      setSubDeleteConfirmOpen(false)
+      setSubToDelete(null)
+    } catch (e) {
+      setMessage({ type: "error", text: "Delete failed" })
+      setSubDeleteConfirmOpen(false)
+      setSubToDelete(null)
+    }
+  }
+
   if (userRole === null) return null
 
   return (
@@ -223,10 +407,17 @@ export default function AdminJobCategoriesPage() {
               <h1 className="text-3xl font-bold text-foreground">Job Categories</h1>
               <p className="mt-2 text-muted-foreground">Manage job categories for Job & Profile Details (candidate registration and profile)</p>
             </div>
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add category
-            </Button>
+            <div className="flex gap-2">
+              {userRole === "super_admin" && (
+                <Button variant="outline" onClick={() => setSeedConfirmOpen(true)}>
+                  Seed defaults
+                </Button>
+              )}
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add category
+              </Button>
+            </div>
           </div>
 
           {message && !dialogOpen && (
@@ -257,10 +448,12 @@ export default function AdminJobCategoriesPage() {
                       <TableRow>
                         <TableHead className="w-12">Emoji</TableHead>
                         <TableHead>Name</TableHead>
+                        <TableHead>Group</TableHead>
                         <TableHead>Slug</TableHead>
                         <TableHead>Description</TableHead>
                         <TableHead className="w-24">Order</TableHead>
                         <TableHead className="w-24">Status</TableHead>
+                        <TableHead className="w-[140px]">Sub-categories</TableHead>
                         <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -269,6 +462,15 @@ export default function AdminJobCategoriesPage() {
                         <TableRow key={cat.id}>
                           <TableCell className="text-xl">{cat.emoji || "📋"}</TableCell>
                           <TableCell className="font-medium">{cat.name}</TableCell>
+                          <TableCell>
+                            {cat.group ? (
+                              <Badge variant={cat.group === "white_collar" ? "default" : cat.group === "blue_collar" ? "secondary" : "outline"}>
+                                {GROUP_LABELS[cat.group] || cat.group}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-muted-foreground font-mono text-sm">{cat.slug}</TableCell>
                           <TableCell className="max-w-[200px] truncate text-muted-foreground">{cat.description || "—"}</TableCell>
                           <TableCell>{cat.sortOrder}</TableCell>
@@ -276,6 +478,12 @@ export default function AdminJobCategoriesPage() {
                             <Badge variant={cat.isActive ? "default" : "secondary"}>
                               {cat.isActive ? "Active" : "Inactive"}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm" onClick={() => openSubCategoryDialog(cat)}>
+                              <Tags className="mr-1 h-4 w-4" />
+                              Sub-categories
+                            </Button>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
@@ -318,6 +526,19 @@ export default function AdminJobCategoriesPage() {
                 placeholder="e.g. Construction"
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Group</Label>
+              <select
+                value={form.group}
+                onChange={(e) => setForm((f) => ({ ...f, group: e.target.value as typeof form.group }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">—</option>
+                <option value="white_collar">White Collar</option>
+                <option value="blue_collar">Blue Collar</option>
+                <option value="other">Other</option>
+              </select>
             </div>
             <div className="space-y-2">
               <Label>Slug (optional)</Label>
@@ -384,6 +605,109 @@ export default function AdminJobCategoriesPage() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={doDelete}
+      />
+
+      <Dialog open={subCategoryDialogOpen} onOpenChange={setSubCategoryDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tags className="h-5 w-5" />
+              Sub-categories for {subCategoryFor?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Add sub-categories that appear in the dropdown when this category is selected (e.g. in demand creation).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {message && subCategoryDialogOpen && (
+              <MessageBanner message={message} onDismiss={() => setMessage(null)} />
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                placeholder="Sub-category name *"
+                value={subCategoryForm.name}
+                onChange={(e) => setSubCategoryForm((f) => ({ ...f, name: e.target.value }))}
+              />
+              <Input
+                placeholder="Slug (optional)"
+                value={subCategoryForm.slug}
+                onChange={(e) => setSubCategoryForm((f) => ({ ...f, slug: e.target.value }))}
+              />
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <Input
+                  type="number"
+                  placeholder="Order"
+                  value={subCategoryForm.sortOrder}
+                  onChange={(e) => setSubCategoryForm((f) => ({ ...f, sortOrder: e.target.value }))}
+                  className="w-24"
+                />
+                <div className="flex items-center gap-1">
+                  <Switch
+                    checked={subCategoryForm.isActive}
+                    onCheckedChange={(v) => setSubCategoryForm((f) => ({ ...f, isActive: v }))}
+                  />
+                  <Label className="text-xs">Active</Label>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => (subCategoryForm.name.trim() ? doSaveSub() : null)}
+                  disabled={subSaving || !subCategoryForm.name.trim()}
+                >
+                  {subSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingSubId ? "Save" : "Add"}
+                </Button>
+                {editingSubId && (
+                  <Button variant="outline" size="sm" onClick={() => { setEditingSubId(null); setSubCategoryForm({ name: "", slug: "", sortOrder: "0", isActive: true }); }}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </div>
+            {subCategoryLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : subCategories.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">No sub-categories yet. Add one above.</p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto rounded border p-2 space-y-1">
+                {subCategories.map((sub) => (
+                  <div key={sub.id} className="flex items-center justify-between rounded bg-muted/50 px-2 py-1.5">
+                    <span className="font-medium">{sub.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => openEditSub(sub)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openSubDeleteConfirm(sub)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={subDeleteConfirmOpen}
+        onOpenChange={setSubDeleteConfirmOpen}
+        title="Delete sub-category"
+        description={subToDelete ? `Are you sure you want to delete "${subToDelete.name}"?` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={doDeleteSub}
+      />
+
+      <ConfirmDialog
+        open={seedConfirmOpen}
+        onOpenChange={setSeedConfirmOpen}
+        title="Seed default categories"
+        description="This will replace ALL existing job categories and sub-categories with the default set (White Collar, Blue Collar, Other). This cannot be undone."
+        confirmLabel="Replace & Seed"
+        variant="destructive"
+        onConfirm={doSeedDefaults}
+        loading={seeding}
       />
     </div>
   )

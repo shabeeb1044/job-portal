@@ -57,6 +57,7 @@ const languages = [
 function getDashboardHref(role: string): string {
   if (role === "candidate") return "/candidate/dashboard"
   if (role === "company" || role === "corporate") return "/company/dashboard"
+  if (role === "staff") return "/company/dashboard"
   if (role === "agency") return "/agency/dashboard"
   if (role === "agent") return "/agent/dashboard"
   if (role === "admin" || role === "super_admin") return "/admin/dashboard"
@@ -68,6 +69,7 @@ function getRoleLabel(role: string): string {
     candidate: "Job Seeker",
     company: "Company",
     corporate: "Company",
+    staff: "Staff",
     agency: "Agency",
     agent: "Agent",
     admin: "Admin",

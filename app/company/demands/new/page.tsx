@@ -8,10 +8,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Loader2, Check, Briefcase, Utensils, Home, Car, FileCheck, HeartPulse, MoreHorizontal, User, Users, Globe, Clock, CalendarClock, Calendar, X, Shield, CalendarDays } from "lucide-react"
+import { ArrowLeft, Loader2, Check, Briefcase, Utensils, Home, Car, FileCheck, HeartPulse, MoreHorizontal, User, Users, Globe, Clock, CalendarClock, Calendar, X, Shield, CalendarDays, Tags } from "lucide-react"
 import { ALL_COUNTRIES } from "@/lib/countries"
 import { BenefitType, NationalityType, BENEFITS } from "@/lib/job-config"
 import { toast } from "sonner"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 type RoleRow = { jobTitle: string; quantity: string }
 
 const benefitIconMap: Record<BenefitType, React.ReactNode> = {
@@ -101,7 +110,10 @@ export default function CreateDemandPage() {
   const [userId, setUserId] = useState("")
   const [companyId, setCompanyId] = useState("")
   const [companyName, setCompanyName] = useState("")
-  const [employeeName, setEmployeeName] = useState("")
+  const [employeeName, setEmployeeName] = useState("") // selected entry person name (saved to demand)
+  const [employeeUserId, setEmployeeUserId] = useState("") // selected entry person userId (optional)
+  const [staffUsers, setStaffUsers] = useState<{ id: string; name: string; email: string; isActive: boolean }[]>([])
+  const [staffLoading, setStaffLoading] = useState(false)
   const [roles, setRoles] = useState<RoleRow[]>([{ jobTitle: "", quantity: "1" }])
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
@@ -123,6 +135,11 @@ export default function CreateDemandPage() {
   const [status, setStatus] = useState<"open" | "closed" | "on_hold">("open")
   const [deadline, setDeadline] = useState("")
   const [demandLetter, setDemandLetter] = useState<"have" | "arrange" | "">("")
+  const [jobCategoryId, setJobCategoryId] = useState("")
+  const [jobSubCategoryId, setJobSubCategoryId] = useState("")
+  const [jobCategories, setJobCategories] = useState<{ id: string; name: string; slug: string; group?: string }[]>([])
+  const [jobSubCategories, setJobSubCategories] = useState<{ id: string; name: string; slug: string }[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -132,9 +149,71 @@ export default function CreateDemandPage() {
     setCompanyId(u.companyId ?? u.id ?? "")
     const derivedCompanyName = u.name ?? u.companyName ?? ""
     setCompanyName(derivedCompanyName)
-    // Default employee name for display / tracking (company contact / user name)
-    setEmployeeName(u.contactName ?? u.name ?? "")
+    const defaultName = u.name ?? u.contactName ?? ""
+    setEmployeeName(defaultName)
+    setEmployeeUserId(u.id ?? "")
   }, [router])
+
+  useEffect(() => {
+    if (!companyId) return
+    setStaffLoading(true)
+    fetch(`/api/company/users?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          const list = (data.users ?? []).filter((u: any) => u.isActive)
+          setStaffUsers(list)
+        } else {
+          setStaffUsers([])
+        }
+      })
+      .catch(() => setStaffUsers([]))
+      .finally(() => setStaffLoading(false))
+  }, [companyId])
+
+  useEffect(() => {
+    fetch("/api/job-categories")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.categories) {
+          setJobCategories(
+            data.categories.map((c: { id: string; name: string; slug: string; group?: string }) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug || c.id,
+              group: c.group,
+            }))
+          )
+        }
+      })
+      .catch(() => setJobCategories([]))
+      .finally(() => setCategoriesLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (!jobCategoryId) {
+      setJobSubCategories([])
+      setJobSubCategoryId("")
+      return
+    }
+    fetch(`/api/job-sub-categories?categoryId=${encodeURIComponent(jobCategoryId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.subCategories) {
+          setJobSubCategories(
+            data.subCategories.map((s: { id: string; name: string; slug: string }) => ({
+              id: s.id,
+              name: s.name,
+              slug: s.slug || s.id,
+            }))
+          )
+        } else {
+          setJobSubCategories([])
+        }
+      })
+      .catch(() => setJobSubCategories([]))
+    setJobSubCategoryId("")
+  }, [jobCategoryId])
 
   const updateRole = (index: number, field: keyof RoleRow, value: string) => {
     setRoles((r) => r.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
@@ -190,6 +269,8 @@ export default function CreateDemandPage() {
           benefits, gender, nationality, joining, status,
           deadline: deadline || undefined,
           demandLetter: demandLetter || undefined,
+          jobCategoryId: jobCategoryId || undefined,
+          jobSubCategoryId: jobSubCategoryId || undefined,
         }),
       })
       const data = await res.json()
@@ -239,18 +320,100 @@ export default function CreateDemandPage() {
 
           <CardContent className="space-y-8">
 
+            {/* ── Job Category & Sub-category ── */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-primary">
+                <Tags className="h-5 w-5" />
+                <Label className="text-base font-medium">Job Category</Label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={jobCategoryId} onValueChange={setJobCategoryId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "Select category"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["white_collar", "blue_collar", "other"] as const).map((group) => {
+                        const cats = jobCategories.filter((c) => c.group === group || (!c.group && group === "other"))
+                        if (cats.length === 0) return null
+                        const label = group === "white_collar" ? "White Collar" : group === "blue_collar" ? "Blue Collar" : "Other"
+                        return (
+                          <SelectGroup key={group}>
+                            <SelectLabel>{label}</SelectLabel>
+                            {cats.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Sub-category</Label>
+                  <Select
+                    value={jobSubCategoryId}
+                    onValueChange={setJobSubCategoryId}
+                    disabled={!jobCategoryId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={jobCategoryId ? "Select sub-category" : "Select category first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobSubCategories.map((sub) => (
+                        <SelectItem key={sub.id} value={sub.id}>
+                          {sub.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
+
             {/* ── Roles ── */}
             <section className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="employeeName">
-                  Employee (internal note)
-                </Label>
-                <Input
-                  id="employeeName"
-                  placeholder="e.g. Name of staff creating this demand"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                />
+                <Label>Demand entry person (staff)</Label>
+                <Select
+                  value={staffUsers.some((s) => s.id === employeeUserId) ? employeeUserId : ""}
+                  onValueChange={(val) => {
+                    setEmployeeUserId(val)
+                    const found = staffUsers.find((s) => s.id === val)
+                    if (found) setEmployeeName(found.name)
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={staffLoading ? "Loading staff…" : "Select staff"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Staff</SelectLabel>
+                      {staffUsers.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name} ({s.email})
+                        </SelectItem>
+                      ))}
+                      {staffUsers.length === 0 && (
+                        <SelectItem value="__none__" disabled>
+                          No staff users found
+                        </SelectItem>
+                      )}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <div className="space-y-1">
+                  <Label htmlFor="employeeName" className="text-xs text-muted-foreground">
+                    Selected name (saved on demand)
+                  </Label>
+                  <Input id="employeeName" value={employeeName} readOnly />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  This name will be saved on the demand as the internal entry person.
+                </p>
               </div>
 
               <Label>Role (Job title &amp; quantity)</Label>
