@@ -43,13 +43,48 @@ type PendingItem = {
   userId: string
 }
 
+type DemandEditApprovalItem = {
+  id: string
+  demandId: string
+  companyId: string
+  status: "pending" | "approved" | "rejected"
+  requestedAt: string
+  requestedByEmployeeName?: string
+  requestedByUserId?: string
+  changes: Record<string, unknown>
+  demand: {
+    id: string
+    jobTitle?: string
+    companyName?: string
+    location?: string
+    quantity?: number
+    status?: string
+    deadline?: string
+  } | null
+}
+
+function formatValue(v: unknown) {
+  if (v === undefined) return "—"
+  if (v === null) return "null"
+  if (typeof v === "string") return v || "—"
+  if (typeof v === "number" || typeof v === "boolean") return String(v)
+  try {
+    return JSON.stringify(v, null, 2)
+  } catch {
+    return String(v)
+  }
+}
+
 export default function AdminApprovalsPage() {
   const router = useRouter()
   const [pending, setPending] = useState<PendingItem[]>([])
+  const [pendingDemandEdits, setPendingDemandEdits] = useState<DemandEditApprovalItem[]>([])
   const [loading, setLoading] = useState(true)
   const [actingId, setActingId] = useState<string | null>(null)
   const [counts, setCounts] = useState({ agencies: 0, companies: 0 })
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [jobCategories, setJobCategories] = useState<{ id: string; name: string }[]>([])
+  const [jobSubCategories, setJobSubCategories] = useState<{ id: string; name: string }[]>([])
   const [confirmAction, setConfirmAction] = useState<{
     open: boolean
     title: string
@@ -73,6 +108,9 @@ export default function AdminApprovalsPage() {
     }
     setUserRole(userData.role)
     loadPending()
+    loadPendingDemandEdits()
+    loadJobCategories()
+    loadJobSubCategories()
   }, [router])
 
   const loadPending = async () => {
@@ -88,6 +126,68 @@ export default function AdminApprovalsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadPendingDemandEdits = async () => {
+    try {
+      const response = await fetch("/api/admin/demand-approvals")
+      if (response.ok) {
+        const data = await response.json()
+        setPendingDemandEdits(data.pending || [])
+      }
+    } catch (error) {
+      console.error("Failed to load pending demand edits:", error)
+    }
+  }
+
+  const loadJobCategories = async () => {
+    try {
+      const res = await fetch("/api/job-categories")
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data.categories)) {
+        setJobCategories(
+          data.categories.map((c: { id: string; name: string }) => ({
+            id: c.id,
+            name: c.name,
+          }))
+        )
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const loadJobSubCategories = async () => {
+    try {
+      const res = await fetch("/api/admin/job-sub-categories")
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data.subCategories)) {
+        setJobSubCategories(
+          data.subCategories.map((s: { id: string; name: string }) => ({
+            id: s.id,
+            name: s.name,
+          }))
+        )
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const getCategoryName = (id: unknown) => {
+    const str = typeof id === "string" ? id : ""
+    if (!str) return formatValue(id)
+    const found = jobCategories.find((c) => c.id === str)
+    return found ? `${found.name}` : str
+  }
+
+  const getSubCategoryName = (id: unknown) => {
+    const str = typeof id === "string" ? id : ""
+    if (!str) return formatValue(id)
+    const found = jobSubCategories.find((s) => s.id === str)
+    return found ? `${found.name}` : str
   }
 
   const handleAction = async (action: "approve" | "reject", type: "agency" | "company", id: string) => {
@@ -115,6 +215,40 @@ export default function AdminApprovalsPage() {
     if (!confirmAction) return
     await handleAction(confirmAction.action, confirmAction.type, confirmAction.id)
     setConfirmAction(null)
+  }
+
+  const handleDemandEditAction = async (action: "approve" | "reject", requestId: string) => {
+    const target = pendingDemandEdits.find((r) => r.id === requestId)
+    const isDelete = target && (target.changes as any)?.markForDelete
+    const label =
+      action === "approve"
+        ? isDelete
+          ? "Approve delete demand request?"
+          : "Approve demand edit request?"
+        : "Reject demand request?"
+    const ok = window.confirm(label)
+    if (!ok) return
+
+    const user = localStorage.getItem("user")
+    const adminUserId = user ? (JSON.parse(user).id ?? undefined) : undefined
+    setActingId(requestId)
+    try {
+      const response = await fetch("/api/admin/demand-approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, requestId, adminUserId }),
+      })
+      if (response.ok) {
+        await loadPendingDemandEdits()
+      } else {
+        const data = await response.json()
+        console.error(data.error || "Action failed")
+      }
+    } catch (error) {
+      console.error("Demand edit action failed:", error)
+    } finally {
+      setActingId(null)
+    }
   }
 
   const pendingAgencies = pending.filter((p) => p.type === "agency")
@@ -148,7 +282,7 @@ export default function AdminApprovalsPage() {
 
           {loading ? (
             <PageLoader />
-          ) : pending.length === 0 ? (
+          ) : pending.length === 0 && pendingDemandEdits.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
@@ -163,15 +297,18 @@ export default function AdminApprovalsPage() {
             </Card>
           ) : (
             <Tabs defaultValue="all" className="space-y-4">
-              <TabsList className="grid w-full max-w-md grid-cols-3">
+              <TabsList className="grid w-full max-w-2xl grid-cols-4">
                 <TabsTrigger value="all">
-                  All ({pending.length})
+                  All ({pending.length + pendingDemandEdits.length})
                 </TabsTrigger>
                 <TabsTrigger value="agencies">
                   Agencies ({counts.agencies})
                 </TabsTrigger>
                 <TabsTrigger value="companies">
                   Companies ({counts.companies})
+                </TabsTrigger>
+                <TabsTrigger value="demand-edits">
+                  Demand edits ({pendingDemandEdits.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -270,6 +407,120 @@ export default function AdminApprovalsPage() {
                     </Table>
                   </CardContent>
                 </Card>
+
+                {pendingDemandEdits.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Demand edit requests</CardTitle>
+                      <CardDescription>Approve or reject company demand changes</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Demand</TableHead>
+                            <TableHead>Company</TableHead>
+                            <TableHead>Requested</TableHead>
+                            <TableHead>Changes</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pendingDemandEdits.map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell className="font-medium">
+                                {r.demand?.jobTitle || r.demandId}
+                              </TableCell>
+                              <TableCell>{r.demand?.companyName || r.companyId}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {new Date(r.requestedAt).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {r.changes && (r.changes as any).markForDelete ? (
+                                  <span className="inline-flex items-center rounded-full bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-600">
+                                    Delete demand (requires approval)
+                                  </span>
+                                ) : (
+                                  <details className="group">
+                                    <summary className="cursor-pointer select-none hover:text-foreground">
+                                      {Object.keys(r.changes || {}).length} field(s)
+                                    </summary>
+                                    <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/20 p-3 text-xs text-foreground">
+                                      {Object.entries(r.changes || {}).map(([key, nextVal]) => {
+                                        let prevVal: unknown = (r.demand as any)?.[key]
+                                        let shownNext: unknown = nextVal
+                                        if (key === "jobCategoryId") {
+                                          prevVal = getCategoryName(prevVal)
+                                          shownNext = getCategoryName(nextVal)
+                                        } else if (key === "jobSubCategoryId") {
+                                          prevVal = getSubCategoryName(prevVal)
+                                          shownNext = getSubCategoryName(nextVal)
+                                        }
+                                        const label =
+                                          key === "jobCategoryId"
+                                            ? "jobCategory"
+                                            : key === "jobSubCategoryId"
+                                              ? "jobSubCategory"
+                                              : key
+                                        return (
+                                          <div key={key} className="space-y-1">
+                                            <div className="font-semibold">{label}</div>
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                              <div className="rounded-md bg-background/60 p-2">
+                                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                  Old
+                                                </div>
+                                                <pre className="whitespace-pre-wrap break-words font-mono">{formatValue(prevVal)}</pre>
+                                              </div>
+                                              <div className="rounded-md bg-background/60 p-2">
+                                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                  New
+                                                </div>
+                                                <pre className="whitespace-pre-wrap break-words font-mono">{formatValue(shownNext)}</pre>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </details>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    disabled={actingId === r.id}
+                                    onClick={() => handleDemandEditAction("approve", r.id)}
+                                  >
+                                    {actingId === r.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Check className="h-4 w-4 mr-1" />
+                                        Approve
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={actingId === r.id}
+                                    onClick={() => handleDemandEditAction("reject", r.id)}
+                                  >
+                                    <X className="h-4 w-4 mr-1" />
+                                    Reject
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
 
               <TabsContent value="agencies" className="space-y-4">
@@ -435,6 +686,126 @@ export default function AdminApprovalsPage() {
                                       type: "company",
                                       id: item.id,
                                     })}
+                                  >
+                                    <X className="h-4 w-4 mr-1" />
+                                    Reject
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="demand-edits" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Demand edit requests</CardTitle>
+                    <CardDescription>
+                      {pendingDemandEdits.length} request(s) awaiting approval
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {pendingDemandEdits.length === 0 ? (
+                      <p className="py-8 text-center text-muted-foreground">No pending demand edit requests.</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Demand</TableHead>
+                            <TableHead>Company</TableHead>
+                            <TableHead>Requested</TableHead>
+                            <TableHead>Changes</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pendingDemandEdits.map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell className="font-medium">
+                                {r.demand?.jobTitle || r.demandId}
+                              </TableCell>
+                              <TableCell>{r.demand?.companyName || r.companyId}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {new Date(r.requestedAt).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {r.changes && (r.changes as any).markForDelete ? (
+                                  <span className="inline-flex items-center rounded-full bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-600">
+                                    Delete demand (requires approval)
+                                  </span>
+                                ) : (
+                                  <details className="group">
+                                    <summary className="cursor-pointer select-none hover:text-foreground">
+                                      {Object.keys(r.changes || {}).length} field(s)
+                                    </summary>
+                                    <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/20 p-3 text-xs text-foreground">
+                                      {Object.entries(r.changes || {}).map(([key, nextVal]) => {
+                                        let prevVal: unknown = (r.demand as any)?.[key]
+                                        let shownNext: unknown = nextVal
+                                        if (key === "jobCategoryId") {
+                                          prevVal = getCategoryName(prevVal)
+                                          shownNext = getCategoryName(nextVal)
+                                        } else if (key === "jobSubCategoryId") {
+                                          prevVal = getSubCategoryName(prevVal)
+                                          shownNext = getSubCategoryName(nextVal)
+                                        }
+                                        const label =
+                                          key === "jobCategoryId"
+                                            ? "jobCategory"
+                                            : key === "jobSubCategoryId"
+                                              ? "jobSubCategory"
+                                              : key
+                                        return (
+                                          <div key={key} className="space-y-1">
+                                            <div className="font-semibold">{label}</div>
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                              <div className="rounded-md bg-background/60 p-2">
+                                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                  Old
+                                                </div>
+                                                <pre className="whitespace-pre-wrap break-words font-mono">{formatValue(prevVal)}</pre>
+                                              </div>
+                                              <div className="rounded-md bg-background/60 p-2">
+                                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                  New
+                                                </div>
+                                                <pre className="whitespace-pre-wrap break-words font-mono">{formatValue(shownNext)}</pre>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </details>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    disabled={actingId === r.id}
+                                    onClick={() => handleDemandEditAction("approve", r.id)}
+                                  >
+                                    {actingId === r.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Check className="h-4 w-4 mr-1" />
+                                        Approve
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={actingId === r.id}
+                                    onClick={() => handleDemandEditAction("reject", r.id)}
                                   >
                                     <X className="h-4 w-4 mr-1" />
                                     Reject

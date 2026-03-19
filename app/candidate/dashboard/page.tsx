@@ -34,6 +34,7 @@ import {
   MessageSquare,
   Heart,
   Loader2,
+  Sparkles,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { DashboardNotificationBell } from "@/components/dashboard-notification-bell"
@@ -262,6 +263,29 @@ export default function CandidateDashboard() {
         {/* Dashboard Content */}
         <main className="p-4 lg:p-8">
           <MessageBanner message={message} onDismiss={() => setMessage(null)} className="mb-4" />
+
+          {/* Reminder banner until completion */}
+          {profileCompletion != null && profileCompletion < 80 && (
+            <Card className="mb-6 border-primary/30 bg-primary/5">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Complete your profile to unlock job applications.</p>
+                    <p className="text-sm text-muted-foreground">
+                      You’re at <span className="font-medium text-foreground">{profileCompletion}%</span>. Add missing details to get more bids and better matches.
+                    </p>
+                  </div>
+                </div>
+                <Button asChild>
+                  <Link href="/candidate/profile/edit">Complete profile</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Profile Completion */}
           <Card className="mb-6 border-primary/50 bg-primary/5">
             <CardContent className="flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center">

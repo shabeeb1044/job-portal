@@ -20,6 +20,10 @@ export async function POST(request: NextRequest) {
       const candidate = await db.candidates.getById(candidateId)
       if (!candidate) continue
 
+      if (demand.jobSubCategoryId) {
+        await db.candidates.update(candidateId, { jobSubCategoryId: demand.jobSubCategoryId })
+      }
+
       const existingApps = await db.applications.getByAgencyId(agencyId)
       const alreadyApplied = existingApps.find(
         a => a.candidateId === candidateId && a.demandId === demandId
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
         type: 'new_submission',
         title: 'New application',
         message: `${application.candidateName} applied for ${demand.jobTitle} (via agency).`,
-        link: `/company/demands`,
+        link: `/company/demands/${demandId}`,
       }).catch(() => {})
       results.push({ candidateId, status: 'submitted', applicationId: application.id })
     }

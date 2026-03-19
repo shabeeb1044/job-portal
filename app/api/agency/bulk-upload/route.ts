@@ -28,12 +28,18 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const agencyId = (formData.get('agencyId') as string)?.trim()
+    const demandId = (formData.get('demandId') as string)?.trim() || null
 
     if (!agencyId) {
       return NextResponse.json({ error: 'Agency session missing' }, { status: 401 })
     }
 
     const agency = await db.agencies.getById(agencyId)
+    let jobSubCategoryId: string | undefined
+    if (demandId) {
+      const demand = await db.demands.getById(demandId)
+      jobSubCategoryId = demand?.jobSubCategoryId
+    }
     if (!agency) {
       return NextResponse.json({ error: 'Agency not found' }, { status: 404 })
     }
@@ -111,6 +117,7 @@ export async function POST(request: NextRequest) {
             cvUrl,
             password: '',
             isActive: true,
+            jobSubCategoryId,
           } as any)
 
           await dbInstance.collection('candidates').updateOne(

@@ -3,11 +3,11 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/hooks/use-toast"
 import {
   Upload,
   FileText,
@@ -22,14 +22,91 @@ import {
   Eye,
   Download,
   Trash2,
+  AlertCircle,
+  Sparkles,
 } from "lucide-react"
+
+type CandidateProfile = {
+  id: string
+  firstName?: string
+  lastName?: string
+  email?: string
+  phone?: string
+  gender?: string
+  nationality?: string
+  dateOfBirth?: string
+  currentLocation?: string
+  preferredLocations?: string[]
+  maritalStatus?: string
+  languages?: string[]
+  totalExperience?: string
+  currentJobTitle?: string
+  industries?: string[]
+  jobTypes?: string[]
+  jobCategories?: string[]
+  highestEducation?: string
+  fieldOfStudy?: string
+  skills?: string[]
+  certifications?: string[]
+  cvUrl?: string
+  videoUrl?: string
+  photoUrl?: string
+  salaryRange?: { min: number; max: number } | null
+  noticePeriod?: string
+}
+
+function missingProfileFields(c: CandidateProfile) {
+  const missingRequired: Array<{ key: string; label: string }> = []
+  const missingOptional: Array<{ key: string; label: string }> = []
+
+  const req = [
+    { key: "firstName", label: "First name", ok: !!c.firstName },
+    { key: "lastName", label: "Last name", ok: !!c.lastName },
+    { key: "email", label: "Email", ok: !!c.email },
+    { key: "phone", label: "Phone", ok: !!c.phone },
+    { key: "gender", label: "Gender", ok: !!c.gender },
+    { key: "nationality", label: "Nationality", ok: !!c.nationality },
+    { key: "jobCategories", label: "Job categories", ok: (c.jobCategories?.length ?? 0) > 0 },
+    { key: "totalExperience", label: "Total experience", ok: !!c.totalExperience },
+    { key: "highestEducation", label: "Highest education", ok: !!c.highestEducation },
+    { key: "cvUrl", label: "CV / Resume", ok: !!c.cvUrl },
+    { key: "videoUrl", label: "Video introduction", ok: !!c.videoUrl },
+  ]
+  req.forEach((f) => {
+    if (!f.ok) missingRequired.push({ key: f.key, label: f.label })
+  })
+
+  const opt = [
+    { key: "currentJobTitle", label: "Current job title", ok: !!c.currentJobTitle },
+    { key: "industries", label: "Industries", ok: (c.industries?.length ?? 0) > 0 },
+    { key: "jobTypes", label: "Job types", ok: (c.jobTypes?.length ?? 0) > 0 },
+    { key: "skills", label: "Skills", ok: (c.skills?.length ?? 0) > 0 },
+    { key: "languages", label: "Languages", ok: (c.languages?.length ?? 0) > 0 },
+    { key: "currentLocation", label: "Current location", ok: !!c.currentLocation },
+    { key: "preferredLocations", label: "Preferred locations", ok: (c.preferredLocations?.length ?? 0) > 0 },
+    { key: "dateOfBirth", label: "Date of birth", ok: !!c.dateOfBirth },
+    { key: "maritalStatus", label: "Marital status", ok: !!c.maritalStatus },
+    { key: "photoUrl", label: "Profile photo", ok: !!c.photoUrl },
+    { key: "fieldOfStudy", label: "Field of study", ok: !!c.fieldOfStudy },
+    { key: "salaryRange", label: "Expected salary range", ok: !!c.salaryRange },
+    { key: "noticePeriod", label: "Notice period", ok: !!c.noticePeriod },
+  ]
+  opt.forEach((f) => {
+    if (!f.ok) missingOptional.push({ key: f.key, label: f.label })
+  })
+
+  return { missingRequired, missingOptional }
+}
 
 export default function CandidateProfilePage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { toast } = useToast()
   const [candidateId, setCandidateId] = useState<string | null>(null)
   const [cvUrl, setCvUrl] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [profile, setProfile] = useState<CandidateProfile | null>(null)
+  const [profileCompletion, setProfileCompletion] = useState<number | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
 
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [videoFile, setVideoFile] = useState<File | null>(null)
@@ -63,6 +140,15 @@ export default function CandidateProfilePage() {
         if (user.cvUrl) setCvUrl(user.cvUrl)
         if (user.videoUrl) setVideoUrl(user.videoUrl)
 
+        fetch(`/api/candidate/profile?candidateId=${encodeURIComponent(user.id)}`)
+          .then((res) => res.ok ? res.json() : Promise.reject())
+          .then((data) => {
+            if (data?.candidate) setProfile(data.candidate)
+            if (data?.profileCompletion != null) setProfileCompletion(data.profileCompletion)
+          })
+          .catch(() => {})
+          .finally(() => setLoadingProfile(false))
+
         fetch(`/api/candidate/files?candidateId=${user.id}`)
           .then((res) => res.json())
           .then((data) => {
@@ -72,6 +158,7 @@ export default function CandidateProfilePage() {
           .catch(() => {})
       } catch {}
     }
+    setLoadingProfile(false)
   }, [])
 
   const handleCvSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,6 +197,7 @@ export default function CandidateProfilePage() {
           user.cvUrl = data.cvUrl
           localStorage.setItem("user", JSON.stringify(user))
         }
+        toast({ title: "CV updated", description: "Your resume was uploaded successfully." })
       } else {
         alert(data.error || "Upload failed")
       }
@@ -219,6 +307,7 @@ export default function CandidateProfilePage() {
           user.videoUrl = data.videoUrl
           localStorage.setItem("user", JSON.stringify(user))
         }
+        toast({ title: "Video updated", description: "Your video introduction was uploaded successfully." })
       } else {
         alert(data.error || "Upload failed")
       }
@@ -262,6 +351,91 @@ export default function CandidateProfilePage() {
           <p className="text-sm text-muted-foreground">Manage your CV and video introduction</p>
         </div>
       </div>
+
+      {/* Profile completion + missing fields */}
+      <Card className="mb-6 border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Profile completion
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-foreground">
+                {loadingProfile ? "—" : `${profileCompletion ?? 0}%`}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Complete your profile to unlock job applications and increase visibility.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button asChild>
+                <Link href="/candidate/profile/edit">Update Profile</Link>
+              </Button>
+              <Button asChild variant="outline" className="bg-transparent">
+                <Link href="/candidate/dashboard">Dashboard</Link>
+              </Button>
+            </div>
+          </div>
+          <Progress value={profileCompletion ?? 0} className="h-2" />
+
+          {profile && (() => {
+            const { missingRequired, missingOptional } = missingProfileFields(profile)
+            return (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="border-destructive/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                      Complete your profile (required)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {missingRequired.length === 0 ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm">
+                        <Check className="h-4 w-4 text-green-600" />
+                        <span className="font-medium text-green-700">All required fields completed</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {missingRequired.map((f) => (
+                          <Badge key={f.key} variant="destructive">
+                            {f.label}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Nice-to-have (optional)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {missingOptional.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Great — you’ve filled all optional fields.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {missingOptional.slice(0, 10).map((f) => (
+                          <Badge key={f.key} variant="secondary">
+                            {f.label}
+                          </Badge>
+                        ))}
+                        {missingOptional.length > 10 && (
+                          <Badge variant="secondary">+{missingOptional.length - 10} more</Badge>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )
+          })()}
+        </CardContent>
+      </Card>
 
       {/* CV Section */}
       <Card className="mb-6">

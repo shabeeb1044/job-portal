@@ -15,7 +15,6 @@ import {
   DollarSign,
   Users,
   Building2,
-  Upload,
   LayoutGrid,
   List,
   Table2,
@@ -250,8 +249,8 @@ function DemandDetailContent({ demand }: { demand: Demand }) {
       <div className="pt-2 border-t border-slate-200">
         <Link href={`/agent/bulk-upload?demandId=${demand.id}`}>
           <button className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg gap-2 flex items-center justify-center transition-all hover:shadow-lg hover:shadow-blue-500/30 active:scale-95 transform">
-            <Upload className="h-4 w-4" />
-            <span>Upload CVs for this Role</span>
+            <Users className="h-4 w-4" />
+            <span>Submit Candidates for this Role</span>
           </button>
         </Link>
       </div>
@@ -352,10 +351,10 @@ function GridCard({ d, onSelect, onClose, selected, detailOpen }: {
               {selected && <DemandDetailContent demand={selected} />}
             </DialogContent>
           </Dialog>
-          <Button size="sm" asChild className="gap-1 flex-1 h-8 text-xs">
+            <Button size="sm" asChild className="gap-1 flex-1 h-8 text-xs">
             <Link href={`/agent/bulk-upload?demandId=${d.id}`}>
-              <Upload className="h-3 w-3" />
-              Upload CVs
+              <Users className="h-3 w-3" />
+              Submit
             </Link>
           </Button>
         </div>
@@ -434,8 +433,8 @@ function ListRow({ d, onSelect, onClose, selected, detailOpen }: {
             </Dialog>
             <Button size="sm" asChild className="gap-1 h-8 text-xs">
               <Link href={`/agent/bulk-upload?demandId=${d.id}`}>
-                <Upload className="h-3 w-3" />
-                Upload
+                <Users className="h-3 w-3" />
+                Submit
               </Link>
             </Button>
           </div>
@@ -535,8 +534,8 @@ function TableView({ demands, onSelect, onClose, selected, detailOpen }: {
                     </Dialog>
                     <Button size="sm" asChild className="gap-1 h-7 text-xs px-2">
                       <Link href={`/agent/bulk-upload?demandId=${d.id}`}>
-                        <Upload className="h-3 w-3" />
-                        Upload
+                        <Users className="h-3 w-3" />
+                        Submit
                       </Link>
                     </Button>
                   </div>
@@ -606,8 +605,8 @@ export default function AgentDemandsPage() {
         </div>
         <Button asChild className="gap-2 shrink-0 self-start">
           <Link href="/agent/bulk-upload">
-            <Upload className="h-4 w-4" />
-            Bulk Upload CVs
+            <Users className="h-4 w-4" />
+            Submit Candidates
           </Link>
         </Button>
       </div>

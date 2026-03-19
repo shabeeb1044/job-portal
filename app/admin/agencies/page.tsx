@@ -258,7 +258,7 @@ export default function AgenciesManagementPage() {
     const key = (act: string) => agency.id + act
 
     return (
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 justify-end">
         <Button
           variant="outline"
           size="sm"
@@ -434,26 +434,32 @@ export default function AgenciesManagementPage() {
   }
 
   const renderTable = (list: AgencyRow[], showActive = true) => (
-    <Table>
+    <Table className="min-w-[900px]">
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Phone</TableHead>
-          <TableHead>Status</TableHead>
-          {showActive && <TableHead>Active</TableHead>}
-          <TableHead>Document</TableHead>
-          <TableHead>Candidates</TableHead>
-          <TableHead>Registered</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
+          <TableHead className="min-w-[140px]">Name</TableHead>
+          <TableHead className="min-w-[160px]">Email</TableHead>
+          <TableHead className="min-w-[110px]">Phone</TableHead>
+          <TableHead className="min-w-[120px]">Status</TableHead>
+          {showActive && <TableHead className="min-w-[70px]">Active</TableHead>}
+          <TableHead className="min-w-[80px]">Document</TableHead>
+          <TableHead className="min-w-[80px]">Candidates</TableHead>
+          <TableHead className="min-w-[95px]">Registered</TableHead>
+          <TableHead className="min-w-[220px] text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {list.map((agency) => (
           <TableRow key={agency.id}>
-            <TableCell className="font-medium">{agency.name}</TableCell>
-            <TableCell>{agency.email}</TableCell>
-            <TableCell>{agency.phone}</TableCell>
+            <TableCell className="font-medium max-w-[180px]">
+              <span className="block truncate" title={agency.name}>{agency.name}</span>
+            </TableCell>
+            <TableCell className="max-w-[200px]">
+              <span className="block truncate" title={agency.email}>{agency.email}</span>
+            </TableCell>
+            <TableCell className="max-w-[120px]">
+              <span className="block truncate" title={agency.phone}>{agency.phone}</span>
+            </TableCell>
             <TableCell>
               <Select
                 value={getStatus(agency)}
@@ -498,7 +504,7 @@ export default function AgenciesManagementPage() {
                 ? new Date(agency.createdAt).toLocaleDateString()
                 : "—"}
             </TableCell>
-            <TableCell className="text-right">{renderActions(agency)}</TableCell>
+            <TableCell className="text-right whitespace-nowrap">{renderActions(agency)}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -626,9 +632,9 @@ export default function AgenciesManagementPage() {
           {selectedAgency && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Agency Name</p>
-                  <p className="font-medium">{selectedAgency.name}</p>
+                  <p className="font-medium break-words">{selectedAgency.name}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
@@ -638,13 +644,13 @@ export default function AgenciesManagementPage() {
                   <p className="text-xs text-muted-foreground">Active</p>
                   {getStatus(selectedAgency) !== "spam" ? getActiveBadge(selectedAgency) : "—"}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Email</p>
-                  <p className="text-sm">{selectedAgency.email}</p>
+                  <p className="text-sm break-words">{selectedAgency.email}</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="text-sm">{selectedAgency.phone}</p>
+                  <p className="text-sm break-words">{selectedAgency.phone}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Total Candidates</p>

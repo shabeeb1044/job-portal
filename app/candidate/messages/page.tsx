@@ -1,29 +1,37 @@
 "use client"
 
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MessageSquare } from "lucide-react"
-import Link from "next/link"
 
 export default function CandidateMessagesPage() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center p-4">
-      <Card className="max-w-lg w-full text-center">
+    <div className="container mx-auto max-w-4xl px-4 py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Messages</h1>
+          <p className="text-sm text-muted-foreground">Chat with companies and agencies.</p>
+        </div>
+        <Button asChild variant="outline" className="bg-transparent">
+          <Link href="/candidate/dashboard">Dashboard</Link>
+        </Button>
+      </div>
+
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-            <MessageSquare className="h-6 w-6" />
-            Messages
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Inbox
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            Messaging with companies and agencies is{" "}
-            <span className="font-semibold">coming soon</span>.
-            You&apos;ll be able to view and manage conversations here.
-          </p>
-          <Button asChild variant="outline">
-            <Link href="/candidate/dashboard">Back to Dashboard</Link>
-          </Button>
+        <CardContent>
+          <div className="rounded-lg border border-dashed p-8 text-center">
+            <p className="font-medium text-foreground">No messages yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              When a recruiter reaches out, your conversations will show up here.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

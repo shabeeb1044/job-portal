@@ -132,6 +132,20 @@ export async function POST(request: NextRequest) {
       created.push({ id: demand.id, jobTitle: demand.jobTitle, quantity: demand.quantity })
     }
 
+    const approvedAgencies = (await db.agencies.getAll()).filter(
+      (a) => (a as { approvalStatus?: string }).approvalStatus === 'approved' && a.isActive
+    )
+    for (const agency of approvedAgencies) {
+      await db.notifications.create({
+        recipientType: 'agency',
+        recipientId: agency.id,
+        type: 'new_demand',
+        title: 'New demand posted',
+        message: `${companyName} posted new demand(s): ${created.map((d) => d.jobTitle).join(', ')}`,
+        link: '/agency/demands',
+      }).catch(() => {})
+    }
+
     return NextResponse.json({
       success: true,
       message: `Created ${created.length} demand(s)`,

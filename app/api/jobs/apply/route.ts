@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       type: 'new_submission',
       title: 'New application',
       message: `${application.candidateName} applied for ${demand.jobTitle}.`,
-      link: `/company/demands`,
+      link: `/company/demands/${demandId}`,
     }).catch(() => {})
 
     return NextResponse.json({

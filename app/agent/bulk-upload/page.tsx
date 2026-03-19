@@ -1,34 +1,23 @@
 "use client"
 
-import { useEffect, useState, useRef, Suspense } from "react"
+import { useEffect, useState, Suspense } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Upload,
-  FileText,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Loader2,
-  Trash2,
-  CloudUpload,
+  Users,
   Briefcase,
+  Loader2,
+  CheckCircle2,
+  Sparkles,
+  FileText,
+  ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
 import { PageLoader } from "@/components/page-loader"
-
-interface UploadResult {
-  filename: string
-  status: "success" | "duplicate" | "error"
-  message: string
-  candidateId?: string
-}
 
 interface DemandOption {
   id: string
@@ -38,26 +27,32 @@ interface DemandOption {
   status: string
 }
 
+interface CandidateItem {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  skills: string[]
+  totalExperience?: string
+  status: string
+  jobSubCategoryId?: string
+}
+
 function AgentBulkUploadContent() {
   const searchParams = useSearchParams()
   const demandIdFromUrl = searchParams.get("demandId")
 
-  const [files, setFiles] = useState<File[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [results, setResults] = useState<UploadResult[]>([])
-  const [summary, setSummary] = useState<{
-    total: number
-    uploaded: number
-    duplicates: number
-    errors: number
-  } | null>(null)
   const [agencyId, setAgencyId] = useState("")
   const [agentId, setAgentId] = useState("")
   const [demands, setDemands] = useState<DemandOption[]>([])
-  const [selectedDemandId, setSelectedDemandId] = useState<string>("none")
+  const [selectedDemandId, setSelectedDemandId] = useState<string>("")
+  const [matched, setMatched] = useState<CandidateItem[]>([])
+  const [other, setOther] = useState<CandidateItem[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -76,7 +71,7 @@ function AgentBulkUploadContent() {
           setDemands(open)
           if (demandIdFromUrl && open.some((d: DemandOption) => d.id === demandIdFromUrl)) {
             setSelectedDemandId(demandIdFromUrl)
-          } else if (open.length && selectedDemandId === "none") {
+          } else if (open.length && !selectedDemandId) {
             setSelectedDemandId(open[0].id)
           }
         }
@@ -85,83 +80,107 @@ function AgentBulkUploadContent() {
       .finally(() => setLoading(false))
   }, [demandIdFromUrl])
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || [])
-    const validFiles = selected.filter(
-      (f) =>
-        f.type === "application/pdf" ||
-        f.type === "application/msword" ||
-        f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-        f.name.endsWith(".pdf") ||
-        f.name.endsWith(".doc") ||
-        f.name.endsWith(".docx")
-    )
-    if (validFiles.length < selected.length) {
-      toast.warning(`${selected.length - validFiles.length} file(s) skipped (only PDF, DOC, DOCX allowed)`)
+  useEffect(() => {
+    if (!selectedDemandId || selectedDemandId === "none" || !agencyId) {
+      setMatched([])
+      setOther([])
+      setSelectedIds(new Set())
+      return
     }
-    setFiles((prev) => [...prev, ...validFiles])
+    setCandidatesLoading(true)
+    setSelectedIds(new Set())
+    fetch(`/api/agent/demand-candidates?demandId=${encodeURIComponent(selectedDemandId)}&agencyId=${encodeURIComponent(agencyId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          setMatched(data.matched ?? [])
+          setOther(data.other ?? [])
+        } else {
+          setMatched([])
+          setOther([])
+        }
+      })
+      .catch(() => {
+        setMatched([])
+        setOther([])
+      })
+      .finally(() => setCandidatesLoading(false))
+  }, [selectedDemandId, agencyId])
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
+  const selectAllMatched = () => {
+    if (matched.length === 0) return
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      matched.forEach((c) => next.add(c.id))
+      return next
+    })
   }
 
-  const handleUpload = async () => {
-    if (files.length === 0) return
+  const selectAllOther = () => {
+    if (other.length === 0) return
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      other.forEach((c) => next.add(c.id))
+      return next
+    })
+  }
+
+  const handleSubmit = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Select at least one candidate")
+      return
+    }
     const userStr = typeof localStorage !== "undefined" ? localStorage.getItem("user") : null
     const u = userStr ? JSON.parse(userStr) : {}
     const effectiveAgencyId = agencyId || u.agencyId
     const effectiveAgentId = agentId || u.agentId || u.id
-    if (!effectiveAgencyId || !effectiveAgentId) {
-      toast.error("Session missing. Please log in again as an agent.")
+    if (!effectiveAgencyId || !effectiveAgentId || !selectedDemandId) {
+      toast.error("Session or demand missing. Please log in and select a demand.")
       return
     }
-    setUploading(true)
-    setProgress(0)
-    setResults([])
-    setSummary(null)
-
-    const formData = new FormData()
-    formData.append("agencyId", effectiveAgencyId)
-    formData.append("agentId", effectiveAgentId)
-    if (selectedDemandId && selectedDemandId !== "none") formData.append("demandId", selectedDemandId)
-    files.forEach((f) => formData.append("files", f))
-
-    const progressInterval = setInterval(() => setProgress((p) => Math.min(p + 5, 90)), 200)
-
+    setSubmitting(true)
     try {
-      const res = await fetch("/api/agency/bulk-upload", { method: "POST", body: formData })
+      const res = await fetch("/api/agency/apply-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          demandId: selectedDemandId,
+          candidateIds: Array.from(selectedIds),
+          agencyId: effectiveAgencyId,
+          agentId: effectiveAgentId,
+        }),
+      })
       const data = await res.json()
-      clearInterval(progressInterval)
-      setProgress(100)
       if (data.success) {
-        setResults(data.results)
-        setSummary({
-          total: data.total,
-          uploaded: data.uploaded,
-          duplicates: data.duplicates,
-          errors: data.errors,
-        })
-        toast.success(`${data.uploaded} of ${data.total} files uploaded successfully`)
-        setFiles([])
+        const submitted = data.results?.filter((r: { status: string }) => r.status === "submitted").length ?? 0
+        const dupes = data.results?.filter((r: { status: string }) => r.status === "duplicate").length ?? 0
+        toast.success(`${submitted} candidate(s) submitted. ${dupes ? `${dupes} already applied.` : ""}`)
+        setSelectedIds(new Set())
+        fetch(`/api/agent/demand-candidates?demandId=${encodeURIComponent(selectedDemandId)}&agencyId=${encodeURIComponent(effectiveAgencyId)}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success) {
+              setMatched(d.matched ?? [])
+              setOther(d.other ?? [])
+            }
+          })
       } else {
-        toast.error(data.error || "Upload failed")
+        toast.error(data.error || "Submit failed")
       }
     } catch {
-      clearInterval(progressInterval)
-      toast.error("Upload failed")
+      toast.error("Submit failed")
     } finally {
-      setUploading(false)
+      setSubmitting(false)
     }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const dropped = Array.from(e.dataTransfer.files)
-    const valid = dropped.filter(
-      (f) => f.name.endsWith(".pdf") || f.name.endsWith(".doc") || f.name.endsWith(".docx")
-    )
-    setFiles((prev) => [...prev, ...valid])
   }
 
   if (loading) return <PageLoader />
@@ -173,9 +192,9 @@ function AgentBulkUploadContent() {
           <Link href="/agent/demands">← Demands</Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Bulk Upload CVs</h1>
+          <h1 className="text-2xl font-bold">Submit Candidates</h1>
           <p className="text-sm text-muted-foreground">
-            Select a company demand and upload PDF/DOC/DOCX CVs. Data is extracted and linked to the demand.
+            Select a demand and choose candidates from your agency to submit. Matched candidates are shown first.
           </p>
         </div>
       </div>
@@ -187,7 +206,7 @@ function AgentBulkUploadContent() {
             Select demand
           </CardTitle>
           <CardDescription>
-            Each CV will create a candidate and a submission for the selected demand. Required for company to see your submissions.
+            Candidates are grouped by role match. Subcategory-matched candidates appear in the recommended list.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -196,7 +215,6 @@ function AgentBulkUploadContent() {
               <SelectValue placeholder="Select demand" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No demand (candidates only)</SelectItem>
               {demands.map((d) => (
                 <SelectItem key={d.id} value={d.id}>
                   {d.jobTitle} — {d.companyName} ({d.positions})
@@ -207,156 +225,176 @@ function AgentBulkUploadContent() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-            className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 transition-colors hover:border-primary/50 cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <CloudUpload className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-lg font-medium">Drop files here or click to browse</p>
-            <p className="text-sm text-muted-foreground mt-1">PDF, DOC, DOCX (max 5MB per file)</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.doc,.docx"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {files.length > 0 && (
+      {!selectedDemandId ? (
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>{files.length} file(s) selected</CardTitle>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setFiles([])}>
-                  Clear All
-                </Button>
-                <Button size="sm" onClick={handleUpload} disabled={uploading}>
-                  {uploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload All
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {uploading && (
-              <div className="mb-4">
-                <div className="mb-2 flex justify-between text-sm">
-                  <span>Uploading...</span>
-                  <span>{progress}%</span>
-                </div>
-                <Progress value={progress} className="h-2" />
-              </div>
-            )}
-            <div className="max-h-[300px] space-y-2 overflow-y-auto">
-              {files.map((file, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
-                    </div>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Briefcase className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">Select a demand above to see candidates</p>
+          </CardContent>
+        </Card>
+      ) : candidatesLoading ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+            <p className="mt-3 text-sm text-muted-foreground">Loading candidates…</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Matched candidates */}
+          {matched.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      Recommended for this Demand
+                    </CardTitle>
+                    <CardDescription>
+                      Candidates whose role matches this demand&apos;s subcategory
+                    </CardDescription>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => removeFile(idx)}
-                    disabled={uploading}
-                  >
-                    <Trash2 className="h-4 w-4" />
+                  <Button variant="outline" size="sm" onClick={selectAllMatched}>
+                    Select all ({matched.length})
                   </Button>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                  {matched.map((c) => {
+                    const name = `${c.firstName} ${c.lastName}`.trim() || "Candidate"
+                    const checked = selectedIds.has(c.id)
+                    return (
+                      <div
+                        key={c.id}
+                        className={`flex items-center gap-3 rounded-lg border p-3 transition-colors cursor-pointer ${
+                          checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                        }`}
+                        onClick={() => toggleSelect(c.id)}
+                      >
+                        <Checkbox checked={checked} onCheckedChange={() => toggleSelect(c.id)} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                          {c.skills?.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {c.skills.slice(0, 3).map((s) => (
+                                <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{s}</span>
+                              ))}
+                              {c.skills.length > 3 && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">+{c.skills.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {c.totalExperience && (
+                          <span className="text-xs text-muted-foreground shrink-0">{c.totalExperience}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {summary && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Results</CardTitle>
-            <CardDescription>Summary of the bulk upload</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-lg border border-border p-4 text-center">
-                <p className="text-2xl font-bold">{summary.total}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </div>
-              <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center dark:border-green-900 dark:bg-green-900/20">
-                <p className="text-2xl font-bold text-green-600">{summary.uploaded}</p>
-                <p className="text-xs text-green-600">Uploaded</p>
-              </div>
-              <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center dark:border-yellow-900 dark:bg-yellow-900/20">
-                <p className="text-2xl font-bold text-yellow-600">{summary.duplicates}</p>
-                <p className="text-xs text-yellow-600">Duplicates</p>
-              </div>
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center dark:border-red-900 dark:bg-red-900/20">
-                <p className="text-2xl font-bold text-red-600">{summary.errors}</p>
-                <p className="text-xs text-red-600">Errors</p>
-              </div>
+          {/* Other candidates */}
+          {other.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      Other Candidates
+                    </CardTitle>
+                    <CardDescription>
+                      Other candidates from your agency (different role or no role set)
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={selectAllOther}>
+                    Select all ({other.length})
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                  {other.map((c) => {
+                    const name = `${c.firstName} ${c.lastName}`.trim() || "Candidate"
+                    const checked = selectedIds.has(c.id)
+                    return (
+                      <div
+                        key={c.id}
+                        className={`flex items-center gap-3 rounded-lg border p-3 transition-colors cursor-pointer ${
+                          checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                        }`}
+                        onClick={() => toggleSelect(c.id)}
+                      >
+                        <Checkbox checked={checked} onCheckedChange={() => toggleSelect(c.id)} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                          {c.skills?.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {c.skills.slice(0, 3).map((s) => (
+                                <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{s}</span>
+                              ))}
+                              {c.skills.length > 3 && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">+{c.skills.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {c.totalExperience && (
+                          <span className="text-xs text-muted-foreground shrink-0">{c.totalExperience}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {matched.length === 0 && other.length === 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Users className="mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="font-medium">No candidates to submit</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add candidates via referral or manual entry, then return here.
+                </p>
+                <Button variant="outline" className="mt-4" asChild>
+                  <Link href="/agent/candidates">
+                    View candidates <ChevronRight className="ml-1 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+              <p className="font-medium">
+                {selectedIds.size} candidate{selectedIds.size !== 1 ? "s" : ""} selected
+              </p>
+              <Button onClick={handleSubmit} disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Submit to demand
+                  </>
+                )}
+              </Button>
             </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Message</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {results.map((r, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium">{r.filename}</TableCell>
-                      <TableCell>
-                        {r.status === "success" && (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                            <CheckCircle className="mr-1 h-3 w-3" /> Success
-                          </Badge>
-                        )}
-                        {r.status === "duplicate" && (
-                          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
-                            <AlertTriangle className="mr-1 h-3 w-3" /> Duplicate
-                          </Badge>
-                        )}
-                        {r.status === "error" && (
-                          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                            <XCircle className="mr-1 h-3 w-3" /> Error
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{r.message}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+          )}
+        </>
       )}
     </div>
   )

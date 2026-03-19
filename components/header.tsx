@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
-import { signOut as nextAuthSignOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { signOut as nextAuthSignOut, useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,7 @@ import {
   LayoutDashboard,
   User,
   MessageSquare,
+  Bell,
 } from "lucide-react"
 import { DashboardNotificationBell } from "@/components/dashboard-notification-bell"
 
@@ -43,15 +45,12 @@ const navigation = [
   { name: "Companies", href: "/companies" },
   { name: "Agencies", href: "/agencies" },
   { name: "How It Works", href: "/how-it-works" },
-  // { name: "Admin", href: "/admin/login", admin: true },
 ]
 
 const languages = [
   { code: "en", name: "English" },
   { code: "ar", name: "العربية" },
   { code: "hi", name: "हिन्दी" },
-  // { code: "tl", name: "Filipino" },
-  // { code: "bn", name: "বাংলা" },
 ]
 
 function getDashboardHref(role: string): string {
@@ -90,19 +89,55 @@ function readStoredUser(): { id?: string; name?: string; email?: string; role?: 
   }
 }
 
+function initialsFrom(nameOrEmail?: string) {
+  const s = (nameOrEmail || "").trim()
+  if (!s) return "U"
+  const parts = s.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
 export function Header() {
   const { setTheme, theme } = useTheme()
   const router = useRouter()
-  const pathname = usePathname()
+  const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
   const [language, setLanguage] = useState("en")
-  const [user, setUser] = useState<{ id?: string; name?: string; email?: string; role?: string } | null>(null)
+  const [user, setUser] = useState<{
+    id?: string
+    name?: string
+    email?: string
+    role?: string
+    image?: string
+    companyId?: string
+    agencyId?: string
+    agentId?: string
+    candidateId?: string
+  } | null>(null)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
 
   // Hydrate user from localStorage after mount so server and client first paint match (avoids hydration error)
   useEffect(() => {
-    setUser(readStoredUser())
-  }, [])
+    const stored = readStoredUser()
+    if (stored) {
+      setUser(stored)
+      return
+    }
+    if (session?.user) {
+      const su = session.user as Record<string, unknown>
+      setUser({
+        id: su.id as string | undefined,
+        role: su.role as string | undefined,
+        name: (session.user.name as string) || undefined,
+        email: (session.user.email as string) || undefined,
+        image: su.image as string | undefined,
+        companyId: su.companyId as string | undefined,
+        agencyId: su.agencyId as string | undefined,
+        agentId: su.agentId as string | undefined,
+        candidateId: su.candidateId as string | undefined,
+      })
+    }
+  }, [session])
 
   const handleLogout = () => {
     localStorage.removeItem("user")
@@ -171,23 +206,72 @@ export function Header() {
             <span className="sr-only">Toggle theme</span>
           </Button>
 
-          {/* Notifications for dashboard roles */}
-          {user?.role && (user.role === "admin" || user.role === "super_admin") && user.id && (
-            <DashboardNotificationBell
-              role="admin"
-              entityId={user.id}
-              viewAllHref="/admin/approvals"
-            />
+          {/* Notifications for all dashboard roles */}
+          {user?.role && user.id && (
+            <>
+              {(user.role === "admin" || user.role === "super_admin") && (
+                <DashboardNotificationBell
+                  role="admin"
+                  entityId={user.id}
+                  viewAllHref="/admin/approvals"
+                />
+              )}
+              {user.role === "company" && (user.companyId || user.id) && (
+                <DashboardNotificationBell
+                  role="company"
+                  entityId={user.companyId ?? user.id}
+                  viewAllHref="/company/demands"
+                />
+              )}
+              {user.role === "corporate" && (user.companyId || user.id) && (
+                <DashboardNotificationBell
+                  role="company"
+                  entityId={user.companyId ?? user.id}
+                  viewAllHref="/company/demands"
+                />
+              )}
+              {user.role === "staff" && (user.companyId || user.id) && (
+                <DashboardNotificationBell
+                  role="company"
+                  entityId={user.companyId ?? user.id}
+                  viewAllHref="/company/demands"
+                />
+              )}
+              {user.role === "agency" && (user.agencyId || user.id) && (
+                <DashboardNotificationBell
+                  role="agency"
+                  entityId={user.agencyId ?? user.id}
+                  viewAllHref="/agency/demands"
+                />
+              )}
+              {user.role === "agent" && (user.agentId || user.id) && (
+                <DashboardNotificationBell
+                  role="agent"
+                  entityId={user.agentId ?? user.id}
+                  viewAllHref="/agent/applications"
+                />
+              )}
+              {user.role === "candidate" && (user.candidateId || user.id) && (
+                <DashboardNotificationBell
+                  role="candidate"
+                  entityId={user.candidateId ?? user.id}
+                  viewAllHref="/candidate/notifications"
+                />
+              )}
+            </>
           )}
 
           {/* Logged-in: Account dropdown with Dashboard + Logout */}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                  <User className="h-4 w-4" />
-                  <span className="max-w-[120px] truncate">{user.name || user.email || "Account"}</span>
-                  <ChevronDown className="h-3 w-3" />
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Avatar className="size-8">
+                    <AvatarImage src={user.image || ""} alt={user.name || user.email || "User"} />
+                    <AvatarFallback>{initialsFrom(user.name || user.email)}</AvatarFallback>
+                  </Avatar>
+                  <span className="max-w-[160px] truncate">{user.name || user.email || "Account"}</span>
+                  <ChevronDown className="h-3 w-3 opacity-70" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -198,12 +282,6 @@ export function Header() {
                 {user.role === "candidate" ? (
                   <>
                     <DropdownMenuItem asChild>
-                      <Link href="/candidate/dashboard" className="flex items-center gap-2">
-                        <LayoutDashboard className="h-4 w-4" />
-                        Dashboard
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
                       <Link href="/candidate/profile" className="flex items-center gap-2">
                         <User className="h-4 w-4" />
                         Profile
@@ -213,6 +291,12 @@ export function Header() {
                       <Link href="/candidate/messages" className="flex items-center gap-2">
                         <MessageSquare className="h-4 w-4" />
                         Messages
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/candidate/notifications" className="flex items-center gap-2">
+                        <Bell className="h-4 w-4" />
+                        Notifications
                       </Link>
                     </DropdownMenuItem>
                   </>

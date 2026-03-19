@@ -64,6 +64,9 @@ export interface Candidate {
   fieldOfStudy: string
   skills: string[]
   certifications: string[]
+  // Job classification (for auto-matching with demands)
+  jobCategoryId?: string
+  jobSubCategoryId?: string
   // Documents
   cvUrl?: string
   photoUrl?: string
@@ -293,6 +296,50 @@ export interface Demand {
   jobSubCategoryId?: string
 }
 
+export type DemandEditRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface DemandEditRequest {
+  id: string
+  demandId: string
+  companyId: string
+  requestedByUserId?: string
+  requestedByEmployeeName?: string
+  status: DemandEditRequestStatus
+  changes: Partial<
+    Pick<
+      Demand,
+      | 'jobTitle'
+      | 'description'
+      | 'quantity'
+      | 'requirements'
+      | 'skills'
+      | 'salary'
+      | 'dutyHoursPerDay'
+      | 'breakTimeHours'
+      | 'dayOffPerMonth'
+      | 'timeRemark'
+      | 'shiftStartTime'
+      | 'shiftEndTime'
+      | 'otherBenefitNote'
+      | 'benefits'
+      | 'gender'
+      | 'nationality'
+      | 'location'
+      | 'joining'
+      | 'status'
+      | 'deadline'
+      | 'jobCategoryId'
+      | 'jobSubCategoryId'
+    >
+  > & {
+    markForDelete?: boolean
+  }
+  requestedAt: string
+  reviewedByUserId?: string
+  reviewedAt?: string
+  reviewNote?: string
+}
+
 export type ApplicationStatus = 'submitted' | 'pending' | 'shortlisted' | 'interview' | 'hired' | 'selected' | 'rejected' | 'withdrawn'
 
 export interface Application {
@@ -496,6 +543,15 @@ export const db = {
       const db = await getDatabase()
       const candidate = await db.collection('candidates').findOne({ email })
       return candidate ? toInterface<Candidate>(candidate) : undefined
+    },
+    getByJobSubCategoryId: async (jobSubCategoryId: string): Promise<Candidate[]> => {
+      const db = await getDatabase()
+      const candidates = await db
+        .collection('candidates')
+        .find({ jobSubCategoryId })
+        .sort({ updatedAt: -1 })
+        .toArray()
+      return candidates.map(doc => toInterface<Candidate>(doc))
     },
     create: async (candidate: CreateCandidateInput): Promise<Candidate> => {
       const db = await getDatabase()
@@ -930,6 +986,69 @@ export const db = {
       )
       return result?.value ? toInterface<Demand>(result.value) : null
     },
+    delete: async (id: string): Promise<boolean> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const result = await db.collection('demands').deleteOne(query)
+      return (result.deletedCount ?? 0) > 0
+    },
+  },
+  demandEditRequests: {
+    getAll: async (): Promise<DemandEditRequest[]> => {
+      const db = await getDatabase()
+      const list = await db
+        .collection('demandEditRequests')
+        .find({})
+        .sort({ requestedAt: -1 })
+        .toArray()
+      return list.map((doc) => toInterface<DemandEditRequest>(doc))
+    },
+    getPending: async (): Promise<DemandEditRequest[]> => {
+      const db = await getDatabase()
+      const list = await db
+        .collection('demandEditRequests')
+        .find({ status: 'pending' })
+        .sort({ requestedAt: -1 })
+        .toArray()
+      return list.map((doc) => toInterface<DemandEditRequest>(doc))
+    },
+    getByCompanyId: async (companyId: string): Promise<DemandEditRequest[]> => {
+      const db = await getDatabase()
+      const list = await db
+        .collection('demandEditRequests')
+        .find({ companyId })
+        .sort({ requestedAt: -1 })
+        .toArray()
+      return list.map((doc) => toInterface<DemandEditRequest>(doc))
+    },
+    getById: async (id: string): Promise<DemandEditRequest | undefined> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const doc = await db.collection('demandEditRequests').findOne(query)
+      return doc ? toInterface<DemandEditRequest>(doc) : undefined
+    },
+    create: async (
+      req: Omit<DemandEditRequest, 'id' | 'requestedAt' | 'status'>
+    ): Promise<DemandEditRequest> => {
+      const db = await getDatabase()
+      const doc = {
+        ...req,
+        status: 'pending' as const,
+        requestedAt: new Date().toISOString(),
+      }
+      const result = await db.collection('demandEditRequests').insertOne(doc)
+      return toInterface<DemandEditRequest>({ ...doc, _id: result.insertedId })
+    },
+    update: async (id: string, updates: Partial<DemandEditRequest>): Promise<DemandEditRequest | null> => {
+      const db = await getDatabase()
+      const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id }
+      const result = await db.collection('demandEditRequests').findOneAndUpdate(
+        query,
+        { $set: updates },
+        { returnDocument: 'after' }
+      )
+      return result?.value ? toInterface<DemandEditRequest>(result.value) : null
+    },
   },
   applications: {
     getAll: async (): Promise<Application[]> => {
@@ -1178,6 +1297,9 @@ export async function initializeDatabase() {
     await database.collection('agents').createIndex({ referralCode: 1 }, { unique: true, sparse: true })
     await database.collection('demands').createIndex({ status: 1 })
     await database.collection('demands').createIndex({ companyId: 1 })
+    await database.collection('demandEditRequests').createIndex({ status: 1, requestedAt: -1 })
+    await database.collection('demandEditRequests').createIndex({ companyId: 1, requestedAt: -1 })
+    await database.collection('demandEditRequests').createIndex({ demandId: 1, requestedAt: -1 })
     await database.collection('applications').createIndex({ agencyId: 1 })
     await database.collection('applications').createIndex({ companyId: 1 })
     await database.collection('applications').createIndex({ demandId: 1 })

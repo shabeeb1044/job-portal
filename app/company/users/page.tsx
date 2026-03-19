@@ -28,7 +28,6 @@ export default function CompanyUsersPage() {
 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
 
   useEffect(() => {
     const stored = localStorage.getItem("user")
@@ -90,12 +89,8 @@ export default function CompanyUsersPage() {
       return
     }
     if (!companyId) return
-    if (!name.trim() || !email.trim() || !password) {
-      toast.error("Name, email and password are required")
-      return
-    }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters")
+    if (!name.trim() || !email.trim()) {
+      toast.error("Name and email are required")
       return
     }
     setSaving(true)
@@ -107,7 +102,6 @@ export default function CompanyUsersPage() {
           companyId,
           name: name.trim(),
           email: email.trim(),
-          password,
         }),
       })
       const data = await res.json()
@@ -118,7 +112,6 @@ export default function CompanyUsersPage() {
       toast.success("User added")
       setName("")
       setEmail("")
-      setPassword("")
       await refresh(companyId)
     } catch {
       toast.error("Failed to create user")
@@ -165,7 +158,7 @@ export default function CompanyUsersPage() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. HR Officer" disabled={!canManage || saving} />
@@ -173,10 +166,6 @@ export default function CompanyUsersPage() {
             <div className="space-y-2">
               <Label>Email</Label>
               <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@company.com" disabled={!canManage || saving} />
-            </div>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="min 6 chars" type="password" disabled={!canManage || saving} />
             </div>
           </div>
 

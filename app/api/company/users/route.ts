@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { db, initializeDatabase } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { apiError } from '@/lib/api-utils'
@@ -25,16 +26,15 @@ export async function POST(request: NextRequest) {
   try {
     await initializeDatabase()
     const body = await request.json()
-    const { companyId, name, email, password } = body as {
+    const { companyId, name, email } = body as {
       companyId?: string
       name?: string
       email?: string
-      password?: string
     }
 
-    if (!companyId || !name || !email || !password) {
+    if (!companyId || !name || !email) {
       return NextResponse.json(
-        { error: 'companyId, name, email, password are required' },
+        { error: 'companyId, name and email are required' },
         { status: 400 }
       )
     }
@@ -55,9 +55,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 400 })
     }
 
+    const generatedPassword = randomBytes(9).toString('base64url')
+
     const created = await db.users.create({
       email: normalizedEmail,
-      password: hashPassword(password),
+      password: hashPassword(generatedPassword),
       role: 'staff',
       name: name.trim(),
       isActive: true,

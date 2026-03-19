@@ -81,6 +81,14 @@ export async function POST(request: NextRequest) {
           subscriptionStatus: 'active',
           isActive: true,
         })
+        await db.notifications.create({
+          recipientType: 'agency',
+          recipientId: id,
+          type: 'approval',
+          title: 'Agency approved',
+          message: 'Your agency account has been approved. You can now sign in and start using the platform.',
+          link: '/agency/dashboard',
+        }).catch(() => {})
         return NextResponse.json({ success: true, message: 'Agency approved' })
       }
       if (type === 'company') {
@@ -93,6 +101,14 @@ export async function POST(request: NextRequest) {
           subscriptionPlan: company.subscriptionPlan || 'bronze',
           isActive: true,
         })
+        await db.notifications.create({
+          recipientType: 'company',
+          recipientId: id,
+          type: 'approval',
+          title: 'Company approved',
+          message: 'Your company account has been approved. You can now sign in and start using the platform.',
+          link: '/company/dashboard',
+        }).catch(() => {})
         return NextResponse.json({ success: true, message: 'Company approved' })
       }
     }
@@ -107,6 +123,14 @@ export async function POST(request: NextRequest) {
           approvalStatus: 'rejected',
           isActive: false,
         })
+        await db.notifications.create({
+          recipientType: 'agency',
+          recipientId: id,
+          type: 'approval',
+          title: 'Agency rejected',
+          message: 'Your agency registration was rejected. Please contact support for more information.',
+          link: '/',
+        }).catch(() => {})
         return NextResponse.json({ success: true, message: 'Agency rejected' })
       }
       if (type === 'company') {
@@ -115,6 +139,14 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Company not found' }, { status: 404 })
         }
         await db.companies.update(id, { isActive: false })
+        await db.notifications.create({
+          recipientType: 'company',
+          recipientId: id,
+          type: 'approval',
+          title: 'Company rejected',
+          message: 'Your company registration was rejected. Please contact support for more information.',
+          link: '/',
+        }).catch(() => {})
         return NextResponse.json({ success: true, message: 'Company rejected' })
       }
     }

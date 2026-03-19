@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   ArrowLeft, Play, Loader2, Briefcase, Mail, Phone,
   Lock, Crown, CheckCircle2, XCircle, Clock, Star,
-  MessageSquare, ChevronRight, Building2, FileText, Users,
+  MessageSquare, ChevronRight, Building2, FileText, Users, Pencil, Trash2, Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 import { PageLoader } from "@/components/page-loader"
@@ -93,6 +93,20 @@ type DemandInfo = {
   createdAt?: string
 }
 
+interface RecommendedCandidate {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  skills: string[]
+  totalExperience?: string
+  status: string
+  cvUrl?: string
+  videoUrl?: string
+  score: number
+}
+
 export default function CompanyDemandSubmissionsPage() {
   const params = useParams()
   const router = useRouter()
@@ -107,6 +121,7 @@ export default function CompanyDemandSubmissionsPage() {
     isFree: boolean; isCorporate: boolean; cvDownloadLimit: number | null
     totalCVDownloads: number; freeCandidateLimit: number; level: string | null; status: string | null
   } | null>(null)
+  const [recommended, setRecommended] = useState<RecommendedCandidate[]>([])
 
   useEffect(() => {
     const user = localStorage.getItem("user")
@@ -119,7 +134,8 @@ export default function CompanyDemandSubmissionsPage() {
       fetch(`/api/company/demands?companyId=${cid}`).then(r => r.json()),
       fetch(`/api/company/submissions?companyId=${cid}&demandId=${demandId}`).then(r => r.json()),
       fetch(`/api/company/stats?companyId=${cid}`).then(r => r.json()),
-    ]).then(([dRes, sRes, stRes]) => {
+      fetch(`/api/company/recommended-candidates?companyId=${cid}&demandId=${demandId}`).then(r => r.json()),
+    ]).then(([dRes, sRes, stRes, recRes]) => {
       if (dRes.success && dRes.demands) {
         const d = dRes.demands.find((x: { id: string }) => x.id === demandId)
         if (d) {
@@ -153,6 +169,7 @@ export default function CompanyDemandSubmissionsPage() {
         freeCandidateLimit: stRes.plan.freeCandidateLimit ?? 4,
         level: stRes.plan.level ?? null, status: stRes.plan.status ?? null,
       })
+      if (recRes?.success && recRes.candidates) setRecommended(recRes.candidates)
     }).catch(console.error).finally(() => setLoading(false))
   }, [demandId, router])
 
@@ -182,6 +199,34 @@ export default function CompanyDemandSubmissionsPage() {
     window.open(`/api/company/download-cv?companyId=${encodeURIComponent(companyId)}&candidateId=${encodeURIComponent(candidateId)}`, "_blank")
     setPlanInfo(p => p ? { ...p, totalCVDownloads: p.totalCVDownloads + 1 } : p)
     toast.success(`Downloading CV for ${candidateName}`)
+  }
+
+  const handleDeleteRequest = async () => {
+    if (!companyId || !demandId) return
+    const ok = window.confirm("Request to delete this demand? Admin/superadmin must approve before it is removed.")
+    if (!ok) return
+    try {
+      const userRaw = localStorage.getItem("user")
+      const u = userRaw ? JSON.parse(userRaw) : null
+      const res = await fetch(`/api/company/demands/${demandId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          requestedByUserId: u?.id,
+          requestedByEmployeeName: u?.name ?? u?.contactName,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success("Delete request submitted. Waiting for admin approval.")
+        router.push("/company/demands")
+      } else {
+        toast.error(data.error || "Failed to submit delete request")
+      }
+    } catch {
+      toast.error("Failed to submit delete request")
+    }
   }
 
   if (loading) return <PageLoader />
@@ -219,6 +264,19 @@ export default function CompanyDemandSubmissionsPage() {
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="font-semibold text-foreground">{submissions.length}</span>
             <span className="text-muted-foreground">total</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild className="rounded-full">
+              <Link href={`/company/demands/${demandId}/edit`} className="inline-flex items-center gap-2">
+                <Pencil className="h-3.5 w-3.5" />
+                Request edit
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-full border-rose-300 text-rose-600 hover:bg-rose-50" onClick={handleDeleteRequest}>
+              <Trash2 className="mr-1 h-3.5 w-3.5" />
+              Request delete
+            </Button>
           </div>
         </div>
       </header>
@@ -309,6 +367,102 @@ export default function CompanyDemandSubmissionsPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ══ Recommended for this Demand ══ */}
+        {recommended.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Recommended for this Demand
+              </h2>
+              <span className="text-xs text-muted-foreground">
+                Auto-matched by role · sorted by skills, experience & availability
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {recommended.map((c) => {
+                const name = `${c.firstName} ${c.lastName}`.trim() || "Candidate"
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-start gap-3 rounded-2xl border border-border bg-card/60 px-4 py-3 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <Avatar name={name} size="sm" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-semibold text-foreground">{name}</p>
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                          {c.status.replace("_", " ")}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        {!isFreePlan && c.email && (
+                          <a href={`mailto:${c.email}`} className="flex items-center gap-1 truncate hover:text-foreground">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{c.email}</span>
+                          </a>
+                        )}
+                        {!isFreePlan && c.phone && (
+                          <a href={`tel:${c.phone}`} className="flex items-center gap-1 truncate hover:text-foreground">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{c.phone}</span>
+                          </a>
+                        )}
+                        {c.totalExperience && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            {c.totalExperience}
+                          </span>
+                        )}
+                      </div>
+                      {c.skills?.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {c.skills.slice(0, 4).map((sk) => (
+                            <span
+                              key={sk}
+                              className="rounded-lg bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                            >
+                              {sk}
+                            </span>
+                          ))}
+                          {c.skills.length > 4 && (
+                            <span className="rounded-lg bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                              +{c.skills.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {c.videoUrl && (
+                          <Button variant="outline" size="sm" asChild className="h-7 gap-1 rounded-lg text-xs">
+                            <a href={c.videoUrl} target="_blank" rel="noopener noreferrer">
+                              <Play className="h-3 w-3" /> Video
+                            </a>
+                          </Button>
+                        )}
+                        {!isFreePlan && c.cvUrl ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 rounded-lg text-xs"
+                            onClick={() => handleCvDownload(c.id, name)}
+                          >
+                            <FileText className="h-3 w-3" /> CV
+                          </Button>
+                        ) : isFreePlan && c.cvUrl ? (
+                          <span className="flex items-center gap-1 rounded-lg border border-dashed border-border/60 px-2 py-1 text-[11px] text-muted-foreground">
+                            <Lock className="h-3 w-3" /> CV locked
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
         )}
 
         {/* ══ hero stats row ══ */}

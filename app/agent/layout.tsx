@@ -229,7 +229,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
           <div className="flex items-center gap-2">
             <DashboardNotificationBell
               role="agent"
-              entityId={user.id}
+              entityId={user.agentId ?? user.id}
               viewAllHref="/agent/applications"
             />
             <Button

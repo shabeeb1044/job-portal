@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, ArrowRight, CheckCircle, Loader2 } from "lucide-react"
 import { PersonalInfoStep } from "@/components/candidate/steps/personal-info-step"
 import { JobProfileStep } from "@/components/candidate/steps/job-profile-step"
@@ -53,6 +54,7 @@ const initialFormData: CandidateFormData = {
 
 export default function CandidateProfileEditPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [candidateId, setCandidateId] = useState<string | null>(null)
   const [formData, setFormData] = useState<CandidateFormData>(initialFormData)
   const [currentStep, setCurrentStep] = useState(1)
@@ -177,7 +179,8 @@ export default function CandidateProfileEditPage() {
         setSaving(false)
         return
       }
-      router.push("/candidate/dashboard")
+      toast({ title: "Profile updated", description: "Your changes were saved successfully." })
+      router.push("/candidate/profile")
     } catch {
       setError("Network error. Please try again.")
       setSaving(false)

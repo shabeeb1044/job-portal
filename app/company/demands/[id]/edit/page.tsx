@@ -1,26 +1,78 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Check, Briefcase, Utensils, Home, Car, FileCheck, HeartPulse, MoreHorizontal, User, Users, Globe, Clock, CalendarClock, Calendar, X, Shield, CalendarDays, Tags, MapPin, DollarSign } from "lucide-react"
-import { ALL_COUNTRIES } from "@/lib/countries"
-import { BenefitType, NationalityType, BENEFITS } from "@/lib/job-config"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { PageLoader } from "@/components/page-loader"
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  ShieldCheck,
+  Briefcase,
+  Tags,
+  MapPin,
+  DollarSign,
+  Calendar,
+  Clock,
+  CalendarClock,
+  User,
+  Users,
+  Globe,
+  X,
+  Utensils,
+  Home,
+  Car,
+  FileCheck,
+  HeartPulse,
+  Shield,
+  CalendarDays,
+  MoreHorizontal,
+  Check,
+} from "lucide-react"
+import { BenefitType, NationalityType, BENEFITS } from "@/lib/job-config"
+import { ALL_COUNTRIES } from "@/lib/countries"
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select"
+
+type Demand = {
+  id: string
+  companyId: string
+  companyName: string
+  jobTitle: string
+  description?: string
+  quantity?: number
+  location?: string
+  requirements: string[]
+  skills: string[]
+  status: "open" | "closed" | "on_hold"
+  deadline?: string
+  salary: { amount: number; currency: string }
+  dutyHoursPerDay: number
+  breakTimeHours: number
+  dayOffPerMonth: number
+  timeRemark?: string
+  benefits: BenefitType[]
+  otherBenefitNote?: string
+  gender: "male" | "female" | "any"
+  nationality: NationalityType[]
+  joining: "immediate" | "scheduled"
+  jobCategoryId?: string
+  jobSubCategoryId?: string
+}
 
 const benefitIconMap: Record<BenefitType, React.ReactNode> = {
   food: <Utensils className="h-4 w-4" />,
@@ -103,24 +155,28 @@ function SegmentedControl<T extends string>({
   )
 }
 
-export default function CreateDemandPage() {
+export default function CompanyDemandEditRequestPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [userId, setUserId] = useState("")
+  const params = useParams()
+  const demandId = params?.id as string
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [companyId, setCompanyId] = useState("")
-  const [companyName, setCompanyName] = useState("")
-  const [employeeName, setEmployeeName] = useState("") // selected entry person name (saved to demand)
-  const [employeeUserId, setEmployeeUserId] = useState("") // selected entry person userId (optional)
-  const [staffUsers, setStaffUsers] = useState<{ id: string; name: string; email: string; isActive: boolean }[]>([])
-  const [staffLoading, setStaffLoading] = useState(false)
-  const [quantity, setQuantity] = useState("1")
+  const [requestedByUserId, setRequestedByUserId] = useState<string | undefined>(undefined)
+  const [requestedByEmployeeName, setRequestedByEmployeeName] = useState<string | undefined>(undefined)
+
+  const [original, setOriginal] = useState<Demand | null>(null)
+
+  const [jobTitle, setJobTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [quantity, setQuantity] = useState("1")
   const [location, setLocation] = useState("")
   const [requirements, setRequirements] = useState("")
   const [skills, setSkills] = useState<string[]>([])
   const [skillInput, setSkillInput] = useState("")
   const [salaryAmount, setSalaryAmount] = useState("")
-  const [currency, setCurrency] = useState("AED")
+  const [salaryCurrency, setSalaryCurrency] = useState("AED")
   const [dutyHoursPerDay, setDutyHoursPerDay] = useState("")
   const [breakTimeHours, setBreakTimeHours] = useState("")
   const [dayOffPerMonth, setDayOffPerMonth] = useState("")
@@ -133,7 +189,6 @@ export default function CreateDemandPage() {
   const [joining, setJoining] = useState<"immediate" | "scheduled">("immediate")
   const [status, setStatus] = useState<"open" | "closed" | "on_hold">("open")
   const [deadline, setDeadline] = useState("")
-  const [demandLetter, setDemandLetter] = useState<"have" | "arrange" | "">("")
   const [jobCategoryId, setJobCategoryId] = useState("")
   const [jobSubCategoryId, setJobSubCategoryId] = useState("")
   const [jobCategories, setJobCategories] = useState<{ id: string; name: string; slug: string; group?: string }[]>([])
@@ -149,34 +204,64 @@ export default function CreateDemandPage() {
   const [citiesLoading, setCitiesLoading] = useState(false)
 
   useEffect(() => {
-    const user = localStorage.getItem("user")
-    if (!user) { router.push("/login/company"); return }
-    const u = JSON.parse(user)
-    setUserId(u.id ?? "")
-    setCompanyId(u.companyId ?? u.id ?? "")
-    const derivedCompanyName = u.name ?? u.companyName ?? ""
-    setCompanyName(derivedCompanyName)
-    const defaultName = u.name ?? u.contactName ?? ""
-    setEmployeeName(defaultName)
-    setEmployeeUserId(u.id ?? "")
-  }, [router])
+    const userRaw = localStorage.getItem("user")
+    if (!userRaw) {
+      router.replace("/login/company")
+      return
+    }
+    try {
+      const u = JSON.parse(userRaw)
+      if (u.role !== "company" && u.role !== "corporate") {
+        router.replace("/login/company")
+        return
+      }
+      const cid = u.companyId ?? u.id ?? ""
+      setCompanyId(cid)
+      setRequestedByUserId(u.id ?? undefined)
+      setRequestedByEmployeeName(u.name ?? undefined)
+      if (!cid || !demandId) {
+        setLoading(false)
+        return
+      }
 
-  useEffect(() => {
-    if (!companyId) return
-    setStaffLoading(true)
-    fetch(`/api/company/users?companyId=${encodeURIComponent(companyId)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) {
-          const list = (data.users ?? []).filter((u: any) => u.isActive)
-          setStaffUsers(list)
-        } else {
-          setStaffUsers([])
-        }
-      })
-      .catch(() => setStaffUsers([]))
-      .finally(() => setStaffLoading(false))
-  }, [companyId])
+      fetch(`/api/company/demands/${demandId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data?.success || !data?.demand) return
+          const d = data.demand as Demand
+          if (String(d.companyId) !== String(cid)) {
+            router.replace("/company/demands")
+            return
+          }
+          setOriginal(d)
+          setJobTitle(d.jobTitle ?? "")
+          setDescription(d.description ?? "")
+          setQuantity(String(d.quantity ?? 1))
+          setLocation(d.location ?? "")
+          setRequirements((d.requirements || []).join("\n"))
+          setSkills(d.skills || [])
+          setSalaryAmount(String(d.salary?.amount ?? ""))
+          setSalaryCurrency(d.salary?.currency ?? "AED")
+          setDutyHoursPerDay(String(d.dutyHoursPerDay ?? ""))
+          setBreakTimeHours(String(d.breakTimeHours ?? ""))
+          setDayOffPerMonth(String(d.dayOffPerMonth ?? ""))
+          setTimeRemark(d.timeRemark ?? "")
+          setBenefits(d.benefits || [])
+          setOtherBenefitNote(d.otherBenefitNote ?? "")
+          setGender(d.gender ?? "any")
+          setNationality(d.nationality || [])
+          setJoining(d.joining ?? "immediate")
+          setStatus(d.status ?? "open")
+          setDeadline(d.deadline ?? "")
+          setJobCategoryId(d.jobCategoryId || "")
+          setJobSubCategoryId(d.jobSubCategoryId || "")
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false))
+    } catch {
+      router.replace("/login/company")
+    }
+  }, [demandId, router])
 
   useEffect(() => {
     fetch("/api/job-categories")
@@ -256,7 +341,7 @@ export default function CreateDemandPage() {
   }
 
   const toggleBenefit = (value: BenefitType) => {
-    setBenefits((prev) => prev.includes(value) ? prev.filter((b) => b !== value) : [...prev, value])
+    setBenefits((prev) => (prev.includes(value) ? prev.filter((b) => b !== value) : [...prev, value]))
   }
 
   const addNationality = (country: NationalityType) => {
@@ -267,85 +352,142 @@ export default function CreateDemandPage() {
     setNationality((prev) => prev.filter((n) => n !== country))
   }
 
-  const selectedCategoryName =
-    jobCategories.find((c) => c.id === jobCategoryId)?.name
+  const changes = useMemo(() => {
+    if (!original) return {}
+    const ch: Record<string, unknown> = {}
+    if ((jobTitle ?? "") !== (original.jobTitle ?? "")) ch.jobTitle = jobTitle
+    if ((description ?? "") !== (original.description ?? "")) ch.description = description
+    const qtyNum = Math.max(1, Number(quantity || 0))
+    if (qtyNum !== (original.quantity ?? 0)) ch.quantity = qtyNum
+    if ((location ?? "") !== (original.location ?? "")) ch.location = location
+    const reqArr = requirements.split("\n").map((r) => r.trim()).filter(Boolean)
+    if (JSON.stringify(reqArr) !== JSON.stringify(original.requirements || [])) ch.requirements = reqArr
+    if (JSON.stringify(skills) !== JSON.stringify(original.skills || [])) ch.skills = skills
+    const origSalary = original.salary ?? { amount: 0, currency: "AED" }
+    const sAmount = Number(salaryAmount || 0)
+    if (sAmount !== origSalary.amount || salaryCurrency !== origSalary.currency) {
+      ch.salary = { amount: sAmount, currency: salaryCurrency || "AED" }
+    }
+    const duty = Number(dutyHoursPerDay || 0)
+    if (duty !== (original.dutyHoursPerDay ?? 0)) ch.dutyHoursPerDay = duty
+    const brk = Number(breakTimeHours || 0)
+    if (brk !== (original.breakTimeHours ?? 0)) ch.breakTimeHours = brk
+    const daysOff = Number(dayOffPerMonth || 0)
+    if (daysOff !== (original.dayOffPerMonth ?? 0)) ch.dayOffPerMonth = daysOff
+    if ((timeRemark ?? "") !== (original.timeRemark ?? "")) ch.timeRemark = timeRemark || undefined
+    if (JSON.stringify(benefits) !== JSON.stringify(original.benefits || [])) ch.benefits = benefits
+    if ((otherBenefitNote ?? "") !== (original.otherBenefitNote ?? "")) {
+      ch.otherBenefitNote = benefits.includes("other") ? otherBenefitNote || undefined : undefined
+    }
+    if (gender !== (original.gender ?? "any")) ch.gender = gender
+    if (JSON.stringify(nationality) !== JSON.stringify(original.nationality || [])) ch.nationality = nationality
+    if (joining !== (original.joining ?? "immediate")) ch.joining = joining
+    if (status !== (original.status ?? "open")) ch.status = status
+    if ((deadline ?? "") !== (original.deadline ?? "")) ch.deadline = deadline || undefined
+    if ((jobCategoryId ?? "") !== (original.jobCategoryId ?? "")) ch.jobCategoryId = jobCategoryId || undefined
+    if ((jobSubCategoryId ?? "") !== (original.jobSubCategoryId ?? "")) ch.jobSubCategoryId = jobSubCategoryId || undefined
+    return ch
+  }, [
+    original,
+    jobTitle,
+    description,
+    quantity,
+    location,
+    requirements,
+    skills,
+    salaryAmount,
+    salaryCurrency,
+    dutyHoursPerDay,
+    breakTimeHours,
+    dayOffPerMonth,
+    timeRemark,
+    benefits,
+    otherBenefitNote,
+    gender,
+    nationality,
+    joining,
+    status,
+    deadline,
+    jobCategoryId,
+    jobSubCategoryId,
+  ])
 
-  const selectedSubCategoryName =
-    jobSubCategories.find((s) => s.id === jobSubCategoryId)?.name
+  const submitForApproval = async () => {
+    if (!companyId || !demandId) return
+    if (!original) return
+    if (!jobTitle.trim()) {
+      toast.error("Job title is required")
+      return
+    }
+    if (Object.keys(changes).length === 0) {
+      toast.error("No changes to submit")
+      return
+    }
 
-  const derivedJobTitle = selectedSubCategoryName || selectedCategoryName || "Role"
+    const ok = window.confirm("Submit these changes for admin/superadmin approval?")
+    if (!ok) return
 
-  const selectedEmployeeName = employeeName || ""
-
-  const selectedBenefitLabels = benefitConfig
-    .filter((b) => benefits.includes(b.value))
-    .map((b) => b.label)
-
-  const statusLabel = status.replace("_", " ")
-
-  const handleSubmit = async () => {
-    const qty = Math.max(1, Number(quantity || 0))
-    if (!Number.isFinite(qty) || qty < 1) { toast.error("Quantity must be at least 1"); return }
-    if (!location) { toast.error("Select a country"); return }
-    if (!companyId) { toast.error("Company not found. Please log in again."); return }
-    setLoading(true)
+    setSaving(true)
     try {
-      const res = await fetch("/api/company/demands", {
-        method: "POST",
+      const res = await fetch(`/api/company/demands/${demandId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId,
-          companyName: companyName || "Company",
-          createdByUserId: userId || undefined,
-          createdByEmployeeName: employeeName || undefined,
-          timeRemark: timeRemark || undefined,
-          otherBenefitNote: benefits.includes("other") ? (otherBenefitNote || undefined) : undefined,
-          roles: [{ jobTitle: derivedJobTitle, quantity: qty }],
-          description, location,
-          requirements: requirements.split("\n").map((r) => r.trim()).filter(Boolean),
-          skills,
-          salaryAmount: Number(salaryAmount || 0), currency,
-          dutyHoursPerDay: Number(dutyHoursPerDay || 0),
-          breakTimeHours: Number(breakTimeHours || 0),
-          dayOffPerMonth: Number(dayOffPerMonth || 0),
-          benefits, gender, nationality, joining, status,
-          deadline: deadline || undefined,
-          demandLetter: demandLetter || undefined,
-          jobCategoryId: jobCategoryId || undefined,
-          jobSubCategoryId: jobSubCategoryId || undefined,
+          requestedByUserId,
+          requestedByEmployeeName,
+          changes,
         }),
       })
       const data = await res.json()
-      if (data.success) {
-        toast.success("Demand created. Visible to all approved agencies.")
-        router.push("/company/demands")
+      if (data?.success) {
+        toast.success("Edit request submitted. Waiting for admin approval.")
+        router.push(`/company/demands/${demandId}`)
       } else {
-        toast.error(data.error || "Failed to create demand")
+        toast.error(data?.error || "Failed to submit request")
       }
     } catch {
-      toast.error("Failed to create demand")
+      toast.error("Failed to submit request")
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
+  if (loading) return <PageLoader />
+
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <Card className="min-w-0">
+    <div className="space-y-6 px-4 py-6">
+      <div className="mx-auto flex max-w-5xl items-start justify-between gap-3">
+        <div className="space-y-1">
+          <Link
+            href={`/company/demands/${demandId}`}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to demand
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight">Edit Demand (Approval Required)</h1>
+          <p className="text-sm text-muted-foreground">
+            This form is the same as create demand. Changes will be saved only after{" "}
+            <span className="font-semibold">admin/superadmin approval</span>.
+          </p>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Approval required
+        </div>
+      </div>
+
+      <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_320px]">
+        <Card className="min-w-0 border-border/70">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-primary" />
-              Create Demand
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Briefcase className="h-4 w-4 text-primary" />
+              Edit demand details
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Company info is filled automatically. Add job details, hiring details, and benefits below.
-            </p>
           </CardHeader>
-
           <CardContent className="space-y-8 pt-2">
-
-            {/* ── Job Category & Sub-category ── */}
+            {/* Job category & quantity */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-primary">
                 <Tags className="h-5 w-5" />
@@ -403,51 +545,14 @@ export default function CreateDemandPage() {
                     type="number"
                     min={1}
                     inputMode="numeric"
-                    placeholder="Qty"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-32"
                   />
                 </div>
               </div>
             </section>
 
-            {/* ── Roles ── */}
-            <section className="space-y-3">
-              <div className="space-y-2">
-                <Label>Demand entry person (staff)</Label>
-                <Select
-                  value={staffUsers.some((s) => s.id === employeeUserId) ? employeeUserId : ""}
-                  onValueChange={(val) => {
-                    setEmployeeUserId(val)
-                    const found = staffUsers.find((s) => s.id === val)
-                    if (found) setEmployeeName(found.name)
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={staffLoading ? "Loading staff…" : "Select staff"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Staff</SelectLabel>
-                      {staffUsers.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name} ({s.email})
-                        </SelectItem>
-                      ))}
-                      {staffUsers.length === 0 && (
-                        <SelectItem value="__none__" disabled>
-                          No staff users found
-                        </SelectItem>
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-
-            </section>
-
-            {/* ── Location & Description ── */}
+            {/* Location & description */}
             <section className="space-y-4">
               <div className="space-y-2">
                 <Label>Location (Country / State / City)</Label>
@@ -505,7 +610,11 @@ export default function CreateDemandPage() {
                           return
                         }
                         setCitiesLoading(true)
-                        fetch(`/api/geo/cities?country=${encodeURIComponent(countryCode)}&state=${encodeURIComponent(normalizedState)}`)
+                        fetch(
+                          `/api/geo/cities?country=${encodeURIComponent(countryCode)}&state=${encodeURIComponent(
+                            normalizedState
+                          )}`
+                        )
                           .then((res) => res.json())
                           .then((data) => {
                             if (data.cities) setAvailableCities(data.cities)
@@ -581,22 +690,34 @@ export default function CreateDemandPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Job description</Label>
-                <Textarea id="description" placeholder="Brief job description" value={description}
-                  onChange={(e) => setDescription(e.target.value)} rows={3} />
+                <Textarea
+                  id="description"
+                  placeholder="Brief job description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                />
               </div>
             </section>
 
-            {/* ── Requirements & Skills ── */}
+            {/* Requirements & skills */}
             <section className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="requirements">Requirements <span className="text-muted-foreground font-normal">(one per line)</span></Label>
-                <Textarea id="requirements" placeholder={"e.g. 2+ years experience\ne.g. Basic English speaking"}
-                  value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3} />
+                <Label htmlFor="requirements">
+                  Requirements <span className="text-muted-foreground font-normal">(one per line)</span>
+                </Label>
+                <Textarea
+                  id="requirements"
+                  placeholder={"e.g. 2+ years experience\ne.g. Basic English speaking"}
+                  value={requirements}
+                  onChange={(e) => setRequirements(e.target.value)}
+                  rows={3}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="skillInput">Skills</Label>
                 <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
-                  <div className="flex flex-wrap gap-1.5 mb-2">
+                  <div className="mb-2 flex flex-wrap gap-1.5">
                     {skills.map((skill) => (
                       <span
                         key={skill}
@@ -614,9 +735,7 @@ export default function CreateDemandPage() {
                       </span>
                     ))}
                     {skills.length === 0 && (
-                      <span className="text-[11px] text-muted-foreground">
-                        No skills added yet.
-                      </span>
+                      <span className="text-[11px] text-muted-foreground">No skills added yet.</span>
                     )}
                   </div>
                   <Input
@@ -629,89 +748,75 @@ export default function CreateDemandPage() {
                         e.preventDefault()
                         commitSkill()
                       } else if (e.key === "Backspace" && !skillInput && skills.length) {
-                        // quick remove last skill when input is empty
                         removeSkill(skills[skills.length - 1])
                       }
                     }}
                     className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Example: customer service, sales, cleaning
-                </p>
+                <p className="text-[11px] text-muted-foreground">Example: customer service, sales, cleaning</p>
               </div>
             </section>
 
-            {/* ── Salary ── */}
+            {/* Salary */}
             <section className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="salaryAmount">Salary amount</Label>
-                <Input id="salaryAmount" type="number" min={0} placeholder="e.g. 2000"
-                  value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} />
+                <Input
+                  id="salaryAmount"
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 2000"
+                  value={salaryAmount}
+                  onChange={(e) => setSalaryAmount(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="currency">Currency</Label>
-                <Input id="currency" placeholder="e.g. AED" value={currency}
-                  onChange={(e) => setCurrency(e.target.value)} />
+                <Input
+                  id="currency"
+                  placeholder="e.g. AED"
+                  value={salaryCurrency}
+                  onChange={(e) => setSalaryCurrency(e.target.value)}
+                />
               </div>
             </section>
 
-            {/* ── Work schedule ── */}
+            {/* Work schedule */}
             <section className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="dutyHoursPerDay">Duty hrs / day</Label>
-                <Input id="dutyHoursPerDay" type="number" min={0} value={dutyHoursPerDay}
-                  onChange={(e) => setDutyHoursPerDay(e.target.value)} />
+                <Input
+                  id="dutyHoursPerDay"
+                  type="number"
+                  min={0}
+                  value={dutyHoursPerDay}
+                  onChange={(e) => setDutyHoursPerDay(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="breakTimeHours">Break (hrs)</Label>
-                <Input id="breakTimeHours" type="number" min={0} value={breakTimeHours}
-                  onChange={(e) => setBreakTimeHours(e.target.value)} />
+                <Input
+                  id="breakTimeHours"
+                  type="number"
+                  min={0}
+                  value={breakTimeHours}
+                  onChange={(e) => setBreakTimeHours(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dayOffPerMonth">Days off / mo</Label>
-                <Input id="dayOffPerMonth" type="number" min={0} value={dayOffPerMonth}
-                  onChange={(e) => setDayOffPerMonth(e.target.value)} />
+                <Input
+                  id="dayOffPerMonth"
+                  type="number"
+                  min={0}
+                  value={dayOffPerMonth}
+                  onChange={(e) => setDayOffPerMonth(e.target.value)}
+                />
               </div>
             </section>
 
-            {/* ── Demand letter ── */}
-            <section className="space-y-3">
-              <div className="space-y-1">
-                <Label>Demand letter</Label>
-                <p className="text-xs text-muted-foreground">
-                  Do you provide the demand letter for this requirement?
-                </p>
-              </div>
-              <div className="flex gap-2 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setDemandLetter("have")}
-                  className={[
-                    "flex-1 rounded-lg border px-3 py-1.5 font-medium",
-                    demandLetter === "have"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
-                  ].join(" ")}
-                >
-                  Yes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDemandLetter("arrange")}
-                  className={[
-                    "flex-1 rounded-lg border px-3 py-1.5 font-medium",
-                    demandLetter === "arrange"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
-                  ].join(" ")}
-                >
-                  No
-                </button>
-              </div>
-            </section>
-
-            {/* ── Benefits ── */}
+            {/* Benefits */}
             <section className="space-y-3">
               <div>
                 <Label>Benefits</Label>
@@ -741,7 +846,7 @@ export default function CreateDemandPage() {
               )}
             </section>
 
-            {/* ── Gender ── */}
+            {/* Gender */}
             <section className="space-y-2">
               <Label>Gender preference</Label>
               <SegmentedControl
@@ -759,7 +864,7 @@ export default function CreateDemandPage() {
               />
             </section>
 
-            {/* ── Nationality (multi-select) ── */}
+            {/* Nationality */}
             <section className="space-y-3">
               <div>
                 <Label>Nationality</Label>
@@ -823,10 +928,9 @@ export default function CreateDemandPage() {
               )}
             </section>
 
-            {/* ── Joining & Status & Deadline ── */}
+            {/* Joining, status, deadline */}
             <section className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* Joining */}
                 <div className="space-y-2">
                   <Label>Joining</Label>
                   <SegmentedControl
@@ -841,7 +945,6 @@ export default function CreateDemandPage() {
                     )}
                   />
                 </div>
-                {/* Deadline - only relevant when joining is scheduled */}
                 <div className="space-y-2">
                   <Label
                     htmlFor="deadline"
@@ -868,7 +971,6 @@ export default function CreateDemandPage() {
                 </div>
               </div>
 
-              {/* Status — coloured chips */}
               <div className="space-y-2">
                 <Label>Status</Label>
                 <div className="flex gap-2">
@@ -877,24 +979,29 @@ export default function CreateDemandPage() {
                       key={s}
                       type="button"
                       onClick={() => setStatus(s)}
-                      data-active={status === s}
                       className={[
                         "flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition-all duration-150 focus:outline-none",
                         status === s
                           ? s === "open"
                             ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500"
                             : s === "closed"
-                            ? "border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500"
-                            : "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500"
+                              ? "border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500"
+                              : "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500"
                           : "border-border bg-muted/40 text-muted-foreground hover:border-border/80 hover:bg-muted",
                       ].join(" ")}
                     >
-                      <span className={[
-                        "h-2 w-2 rounded-full",
-                        status === s
-                          ? s === "open" ? "bg-emerald-500" : s === "closed" ? "bg-rose-500" : "bg-amber-500"
-                          : "bg-muted-foreground/30",
-                      ].join(" ")} />
+                      <span
+                        className={[
+                          "h-2 w-2 rounded-full",
+                          status === s
+                            ? s === "open"
+                              ? "bg-emerald-500"
+                              : s === "closed"
+                                ? "bg-rose-500"
+                                : "bg-amber-500"
+                            : "bg-muted-foreground/30",
+                        ].join(" ")}
+                      />
                       {s.replace("_", " ")}
                     </button>
                   ))}
@@ -902,7 +1009,7 @@ export default function CreateDemandPage() {
               </div>
             </section>
 
-            {/* ── Remark (last) ── */}
+            {/* Remark */}
             <section className="space-y-2">
               <Label htmlFor="timeRemark">Remark</Label>
               <Textarea
@@ -914,155 +1021,56 @@ export default function CreateDemandPage() {
               />
             </section>
 
-            {/* ── Actions ── */}
-            <div className="flex gap-2 pt-2 lg:hidden">
-              <Button variant="outline" asChild className="flex-1">
-                <Link href="/company/demands">Cancel</Link>
-              </Button>
-              <Button onClick={handleSubmit} disabled={loading} className="flex-1">
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Create demand
-                  </>
-                )}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <p className="text-xs text-muted-foreground">
+                {Object.keys(changes).length} field(s) changed
+              </p>
+              <Button onClick={submitForApproval} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Submit for approval
               </Button>
             </div>
-
           </CardContent>
         </Card>
 
-        <div className="lg:sticky lg:top-24 self-start">
-          <Card className="border-border/60 bg-card/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-primary" />
-                Demand Preview
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">A quick summary before you submit.</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Role</p>
-                  <p className="min-w-0 text-right font-medium">{derivedJobTitle}</p>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Quantity</p>
-                  <p className="min-w-0 text-right font-medium">{quantity || "1"}</p>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5" />
-                    Location
-                  </p>
-                  <p className="min-w-0 text-right font-medium">{location || "—"}</p>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground flex items-center gap-2">
-                    <DollarSign className="h-3.5 w-3.5" />
-                    Salary
-                  </p>
-                  <p className="min-w-0 text-right font-medium">
-                    {salaryAmount ? `${salaryAmount} ${currency}` : "—"}
-                  </p>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <span
-                    className={[
-                      "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-semibold capitalize",
-                      status === "open"
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                        : status === "closed"
-                          ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
-                          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "h-2 w-2 rounded-full",
-                        status === "open"
-                          ? "bg-emerald-500"
-                          : status === "closed"
-                            ? "bg-rose-500"
-                            : "bg-amber-500",
-                      ].join(" ")}
-                    />
-                    {statusLabel}
-                  </span>
-                </div>
-
-                {selectedBenefitLabels.length > 0 && (
-                  <div className="pt-1">
-                    <p className="mb-2 text-xs text-muted-foreground">Benefits</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedBenefitLabels.slice(0, 4).map((b) => (
-                        <span key={b} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                          {b.replaceAll("_", " ")}
-                        </span>
-                      ))}
-                      {selectedBenefitLabels.length > 4 && (
-                        <span className="rounded-full bg-muted/60 px-3 py-1 text-xs font-medium text-muted-foreground">
-                          +{selectedBenefitLabels.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
+        <Card className="self-start border-border/60 bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Briefcase className="h-4 w-4 text-primary" />
+              Demand Preview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Role</p>
+                <p className="min-w-0 text-right font-medium">{jobTitle || original?.jobTitle || "Role"}</p>
               </div>
-
-              <div className="rounded-xl border border-border/60 bg-background/40 p-3 text-sm space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Entry person</p>
-                  <p className="text-right font-medium">{selectedEmployeeName || "—"}</p>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Gender</p>
-                  <p className="text-right font-medium capitalize">{gender}</p>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Joining</p>
-                  <p className="text-right font-medium capitalize">
-                    {joining === "immediate" ? "Immediate" : `Scheduled ${deadline ? `(${deadline})` : ""}`}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Nationality</p>
-                  <p className="text-right font-medium">
-                    {nationality.length ? `${nationality.length} countries` : "—"}
-                  </p>
-                </div>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Quantity</p>
+                <p className="min-w-0 text-right font-medium">{quantity || original?.quantity || "1"}</p>
               </div>
-
-              <div className="space-y-2 pt-1">
-                <Button onClick={handleSubmit} disabled={loading} className="w-full">
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Create demand
-                    </>
-                  )}
-                </Button>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href="/company/demands">Cancel</Link>
-                </Button>
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Location
+                </p>
+                <p className="min-w-0 text-right font-medium">{location || original?.location || "—"}</p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Salary
+                </p>
+                <p className="min-w-0 text-right font-medium">
+                  {salaryAmount ? `${salaryAmount} ${salaryCurrency}` : original?.salary ? `${original.salary.amount} ${original.salary.currency}` : "—"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
 }
+
